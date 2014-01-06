@@ -1,4 +1,4 @@
-package examplefuncsplayer;
+package team096;
 
 import battlecode.common.Direction;
 import battlecode.common.GameConstants;
