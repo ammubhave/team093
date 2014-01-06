@@ -62,6 +62,14 @@ public class RobotPlayer {
 				}
 			}
 			
+			if (rc.getType() == RobotType.PASTR) {
+				
+			}
+			
+			if (rc.getType() == RobotType.NOISETOWER) {
+				
+			}
+			
 			rc.yield();
 		}
 	}
