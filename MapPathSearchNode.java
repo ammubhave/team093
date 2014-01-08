@@ -5,7 +5,7 @@ import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 
-public class MapPathSearchNode {
+public class MapPathSearchNode implements Comparable<MapPathSearchNode> {
 	TerrainTile map[][] = null;
 	MapLocation location;
 	MapPathSearchNode parent;
@@ -32,6 +32,11 @@ public class MapPathSearchNode {
 		}
 		
 		return (MapPathSearchNode[]) children.toArray();
+	}
+
+	@Override
+	public int compareTo(MapPathSearchNode node) {
+		return this.cost - node.cost;
 	}
 	
 	public MapPathSearchNode[] getPathTo(MapLocation goal) {
