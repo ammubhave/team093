@@ -13,7 +13,6 @@ public class HQRobot extends BaseRobot {
 	
 	@Override
 	public void run() throws GameActionException {
-		try {					
 			//Check if a robot is spawnable and spawn one if it is
 			if (rc.isActive() && rc.senseRobotCount() < 25) {
 				Direction toEnemy = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
@@ -21,8 +20,5 @@ public class HQRobot extends BaseRobot {
 					rc.spawn(toEnemy);
 				}
 			}
-		} catch (Exception e) {
-			System.out.println("HQ Exception");
-		}
 	}
 }

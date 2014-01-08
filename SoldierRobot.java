@@ -18,6 +18,7 @@ public class SoldierRobot extends BaseRobot {
 		MapLocation[] ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null)).getPathTo(new MapLocation(0, 0));
 		
 		try {
+
 			if (rc.isActive()) {
 				/*
 				
@@ -55,8 +56,9 @@ public class SoldierRobot extends BaseRobot {
 				while(true)
 					rc.yield();
 			}
-		} catch (Exception e) {
-			System.out.println("Soldier Exception");
+		}
+		catch (Exception ex) {
+			
 		}
 	}
 	

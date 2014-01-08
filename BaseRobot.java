@@ -59,14 +59,9 @@ public abstract class BaseRobot {
 	
 	public abstract void run() throws GameActionException;
 	
-	public void loop() {
-		while(true) {
-			try {				
-				run();	
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-	
+	public void loop() throws GameActionException {
+		while(true) {			
+				run();
 			rc.yield();
 		}
 	}
