@@ -8,14 +8,15 @@ public abstract class BaseRobot {
 	
 	public boolean[][] booleanMap;
 	public TerrainTile[][] terrainMap;
+	/*public TerrainTile getTerrainMap(int x, int y) {
+		if (terrainMap[x][y] == null) terrainMap[x][y] = senseTerrainMap(rc);
+		return terrainMap[x][y];
+	}*/
 	
 	public final RobotController rc;
 	public BaseRobot(RobotController rc) throws GameActionException {
 		this.rc = rc;
 		
-		//populate 2D arrays with map information
-		booleanMap = senseBooleanMap(rc);
-		terrainMap = senseTerrainMap(rc);
 	}
 	
 	//creates 2D boolean array indicating whether each map point can be moved into
@@ -29,6 +30,7 @@ public abstract class BaseRobot {
 		for (int x = 0; x < width ; x++ ) {
 			
 			for (int y = 0; y < height; y++) {
+			//	System.out.print(x);System.out.print(y);
 				TerrainTile tile = rc.senseTerrainTile(new MapLocation(x,y));
 				fieldGrid[x][y] = (tile == TerrainTile.NORMAL || tile == TerrainTile.ROAD );
 			}
@@ -49,7 +51,7 @@ public abstract class BaseRobot {
 		for (int x = 0; x < width ; x++ )
 		{
 			for (int y = 0; y < height; y++)
-			{
+			{				
 				fieldGrid[x][y] =  rc.senseTerrainTile(new MapLocation(x,y));
 			}
 		}
