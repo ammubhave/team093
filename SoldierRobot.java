@@ -15,7 +15,6 @@ public class SoldierRobot extends BaseRobot {
 		Random rand = new Random();
 		Direction[] directions = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
 		
-		try {
 			if (rc.isActive()) {
 				int action = (rc.getRobot().getID()*rand.nextInt(101) + 50)%101;
 				//Construct a PASTR
@@ -42,9 +41,6 @@ public class SoldierRobot extends BaseRobot {
 					}
 				}
 			}
-		} catch (Exception e) {
-			System.out.println("Soldier Exception");
-		}
 	}
 	
 	public MapLocation getNearestCowLocation() {
