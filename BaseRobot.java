@@ -24,6 +24,4 @@ public abstract class BaseRobot {
 			rc.yield();
 		}
 	}
-	
-	
 }
