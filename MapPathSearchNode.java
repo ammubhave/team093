@@ -31,7 +31,7 @@ public class MapPathSearchNode implements Comparable<MapPathSearchNode> {
 			}
 		}
 		
-		return (MapPathSearchNode[]) children.toArray();
+		return (MapPathSearchNode[]) children.toArray(new MapPathSearchNode[children.size()]);
 	}
 
 	@Override
@@ -39,24 +39,24 @@ public class MapPathSearchNode implements Comparable<MapPathSearchNode> {
 		return this.cost - node.cost;
 	}
 	
-	public MapPathSearchNode[] getPathTo(MapLocation goal) {
+	public MapLocation[] getPathTo(MapLocation goal) {
 		PriorityQueue<MapPathSearchNode> nodes = new PriorityQueue<MapPathSearchNode>();
 		ArrayList<MapLocation> locationsVisited = new ArrayList<MapLocation>();
-		nodes.add(this);
+		nodes.add(this);		
 		locationsVisited.add(this.location);
 		while (!nodes.isEmpty()) {
 			MapPathSearchNode node = nodes.remove();
 			MapPathSearchNode nodeChildren[] = node.getChildren();
 			for (MapPathSearchNode nodeChild : nodeChildren) {
 				if (nodeChild.location.equals(goal)) {
-					ArrayList<MapPathSearchNode> path = new ArrayList<MapPathSearchNode>();
+					ArrayList<MapLocation> path = new ArrayList<MapLocation>();
 					MapPathSearchNode curNode = nodeChild;
 					while (curNode != null) {
-						path.add(0, curNode);
+						path.add(0, curNode.location);
 						curNode = curNode.parent;
 					}
 					
-					return (MapPathSearchNode[]) path.toArray();
+					return (MapLocation[]) path.toArray(new MapLocation[path.size()]);
 				} else if(!locationsVisited.contains(nodeChild.location)) {
 					nodes.add(nodeChild);
 					locationsVisited.add(nodeChild.location);

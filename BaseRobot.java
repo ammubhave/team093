@@ -50,7 +50,7 @@ public abstract class BaseRobot {
 		{
 			for (int y = 0; y < height; y++)
 			{
-				fieldGrid[width][height] =  rc.senseTerrainTile(new MapLocation(x,y));
+				fieldGrid[x][y] =  rc.senseTerrainTile(new MapLocation(x,y));
 			}
 		}
 		
