@@ -46,4 +46,9 @@ public class SoldierRobot extends BaseRobot {
 			System.out.println("Soldier Exception");
 		}
 	}
+	
+	public MapLocation getNearestCowLocation() {
+		
+		return null;
+	}
 }
