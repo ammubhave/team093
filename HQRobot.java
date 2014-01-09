@@ -11,26 +11,34 @@ public class HQRobot extends BaseRobot {
 		//System.out.print("Begin init");
 		//populate 2D arrays with map information
 		//booleanMap = senseBooleanMap(rc);
+		
 		terrainMap = senseTerrainMap(rc);
+		broadcastTerrainMap(rc.getMapWidth(),rc.getMapHeight());
+	}
+	
+	private void broadcastTerrainMap(int width, int height) throws GameActionException{
 		//encode map terrain and broadcast
 		int buffer=0;
 		int channel=0;
 		//System.out.println(terrainMap[0][0].ordinal()+" "+terrainMap[0][0].ordinal()*(Math.pow(2, (((0*(rc.getMapHeight()/2)+0)%16)*2))));
-		for (int i = 0; i < rc.getMapWidth(); i++){
-			for (int j = 0; j < rc.getMapHeight()/2; j++){
+		for (int i = 0; i < width; i++){
+			for (int j = 0; j < height/2; j++){
 				//System.out.print(i*(rc.getMapHeight()/2)+j+",");
-				buffer+=terrainMap[i][j].ordinal()*(Math.pow(2,(((i*(rc.getMapHeight()/2)+j)%16)*2)));
-				System.out.print(terrainMap[i][j].ordinal());
-				if((i*(rc.getMapHeight()/2)+j)%16==0&&!(i==0&&j==0)){
+				buffer+=terrainMap[i][j].ordinal()<<((i*(height/2)+j)%15*2);
+				//System.out.print(terrainMap[i][j].ordinal());
+				if((i*(height/2)+j)%15==14){
 					rc.broadcast(channel, buffer);
 					//System.out.println("channel: "+channel+" buffer: "+buffer+" i: "+i+" j: "+j);
 					buffer=0;
 					channel+=1;
 				}
 			}
-			System.out.println(" ");
+			//System.out.println(" ");
 		}
-		//System.out.print("Done init");
+		//broadcast last piece of map that didn't completely fill the buffer
+		if(buffer!=0){
+			rc.broadcast(channel, buffer);
+		}
 	}
 	
 	@Override
