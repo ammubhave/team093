@@ -22,25 +22,20 @@ public class SoldierRobot extends BaseRobot {
 		int channel=0;
 		for (int i = 0; i < width; i++){
 			for (int j = 0; j < height/2; j++){
-				if((i*(rc.getMapHeight()/2)+j)%16==0){
+				if((i*(height/2)+j)%16==0){
 					buffer=rc.readBroadcast(channel);
+					System.out.println(channel+": "+buffer);
 					channel+=1;
 				}
 				//System.out.println("channel: " +(channel-1)+" #"+((i*(rc.getMapHeight()/2)+j)%16)+" buffer: "+((buffer&(3<<((i*(rc.getMapHeight()/2)+j)%16*2)))>>((i*(rc.getMapHeight()/2)+j)%16*2)));
 				terrainMap[i][j]= TerrainTile.values()[(buffer&(3<<((i*(rc.getMapHeight()/2)+j)%16*2)))>>((i*(rc.getMapHeight()/2)+j)%16*2)];
-			}
-		}
-
-		//rotate 180 to get the other half
-		for (int i = 0; i < width; i++){
-			for (int j = 0; j < height/2; j++){
-				terrainMap[width-1-i][height-1-j] = terrainMap[i][j];
+				terrainMap[width-1-i][height-1-j] = terrainMap[i][j]; //rotate 180 to get the other half
 			}
 		}
 		
 		for (int i = 0; i < width; i++){
 			for (int j = 0; j < height; j++){
-				System.out.print(terrainMap[i][j].ordinal()+", ");
+				System.out.print(terrainMap[i][j].ordinal());
 			}
 			System.out.println(" ");
 		}
