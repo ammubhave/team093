@@ -7,12 +7,45 @@ import java.util.*;
 public class SoldierRobot extends BaseRobot {
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
-		terrainMap = new TerrainTile[rc.getMapWidth()][rc.getMapHeight()];
-		for (int i = 0; i < rc.getMapWidth(); i++)
-			for (int j = 0; j < rc.getMapHeight(); j++)
-				terrainMap[i][j] = TerrainTile.values()[rc.readBroadcast(i + j * rc.getMapWidth())];
+		readTerrain(rc.getMapWidth(),rc.getMapHeight());
 	}
-	
+	public void readTerrain(int width, int height) throws GameActionException{
+		
+		//read and decode half the map
+		terrainMap = new TerrainTile[width][height];
+		/*
+		for (int i = 0; i < width; i++)
+			for (int j = 0; j < height/2; j++)
+				terrainMap[i][j] = TerrainTile.values()[rc.readBroadcast(i + j * height)];
+		*/
+		int buffer=0;
+		int channel=0;
+		for (int i = 0; i < width; i++){
+			for (int j = 0; j < height/2; j++){
+				if((i*(rc.getMapHeight()/2)+j)%16==0){
+					buffer=rc.readBroadcast(channel);
+					channel+=1;
+				}
+				//System.out.println("channel: " +(channel-1)+" #"+((i*(rc.getMapHeight()/2)+j)%16)+" buffer: "+((buffer&(3<<((i*(rc.getMapHeight()/2)+j)%16*2)))>>((i*(rc.getMapHeight()/2)+j)%16*2)));
+				terrainMap[i][j]= TerrainTile.values()[(buffer&(3<<((i*(rc.getMapHeight()/2)+j)%16*2)))>>((i*(rc.getMapHeight()/2)+j)%16*2)];
+			}
+		}
+
+		//rotate 180 to get the other half
+		for (int i = 0; i < width; i++){
+			for (int j = 0; j < height/2; j++){
+				terrainMap[width-1-i][height-1-j] = terrainMap[i][j];
+			}
+		}
+		
+		for (int i = 0; i < width; i++){
+			for (int j = 0; j < height; j++){
+				System.out.print(terrainMap[i][j].ordinal()+", ");
+			}
+			System.out.println(" ");
+		}
+		
+	}
 	@Override
 	public void run() throws GameActionException {
 
@@ -58,6 +91,11 @@ public class SoldierRobot extends BaseRobot {
 				//System.out.print(ls.length);System.out.flush();
 				for(int i= 0;i<ls.length-1;i++) {
 					while(!rc.isActive());
+					Robot[] nearbyEnemies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam().opponent());
+					if (nearbyEnemies.length > 0) {
+						RobotInfo robotInfo = rc.senseRobotInfo(nearbyEnemies[0]);
+						rc.attackSquare(robotInfo.location);
+					}
 					//System.out.print(ls[i]);
 					Direction toGoal = ls[i].directionTo(ls[i+1]);
 					if (rc.canMove(toGoal)) {
