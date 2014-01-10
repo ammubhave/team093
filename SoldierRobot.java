@@ -5,9 +5,13 @@ import battlecode.common.*;
 import java.util.*;
 
 public class SoldierRobot extends BaseRobot {
+	
+	private int moveCount=0;
+	
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
 		readTerrain(rc.getMapWidth(),rc.getMapHeight());
+		
 	}
 	private void readTerrain(int width, int height) throws GameActionException{
 		
@@ -50,8 +54,9 @@ public class SoldierRobot extends BaseRobot {
 	
 	@Override
 	public void run() throws GameActionException {
-		MapLocation destination;
-		
+		MapLocation destination = new MapLocation(5,0);
+		MapLocation[] ls = null;
+		int mode=0;//0-do nothing, 1-moving somewhere
 		//scan for nearbyEnemies, decide whether or not to attack
 		Robot[] nearbyEnemies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam().opponent());
 		if (nearbyEnemies.length > 0) {
@@ -63,57 +68,33 @@ public class SoldierRobot extends BaseRobot {
 		
 		//sense nearby pastrs, build one if there aren't any
 		MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
-		if(myPastrLocations.length==0){
+		if(myPastrLocations.length==0&&mode==0){
 			destination=newPastureLocation();
 		}
 		else{
 			//heard heard(pasture, location) 
 		}
-		
-		rc.yield();
-		MapLocation[] ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, rc.getLocation().add(-10, -23))).getPathTo(rc.getLocation().add(-10, -23));
-		rc.yield();
-		//System.out.print("RUNNING SOLDIER!\n");
-		try {
-			//
-			if (rc.isActive()) {			
-				//rc.construct(RobotType.PASTR);
-				rc.getHealth();
-				//System.out.print(ls.length);System.out.flush();
-				for(int i= 0;i<ls.length-1;i++) {
-					while(!rc.isActive());
+		if(mode==0){
+			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
+			mode=1;
+		}
+		if (rc.isActive()&&mode==1) {
+			//System.out.print(ls.length);System.out.flush();
+			if(moveCount<ls.length-1){
+				//System.out.print(ls[i]);
+				Direction toGoal = ls[moveCount].directionTo(ls[moveCount+1]);
+				if (rc.canMove(toGoal)) {
 					//System.out.print(ls[i]);
-					Direction toGoal = ls[i].directionTo(ls[i+1]);
-					if (rc.canMove(toGoal)) {
-						//System.out.print(ls[i]);
-						//System.out.print(toGoal);
-						rc.move(toGoal);
-						rc.yield();
-					}
-					
+					//System.out.print(toGoal);
+					rc.move(toGoal);
 				}
-				
-				ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, rc.getLocation().add(10, 23))).getPathTo(rc.getLocation().add(10, 23));
-				rc.yield();
-				
-				for(int i= 0;i<ls.length-1;i++) {
-					while(!rc.isActive());
-					//System.out.print(ls[i]);
-					Direction toGoal = ls[i].directionTo(ls[i+1]);
-					if (rc.canMove(toGoal)) {
-						//System.out.print(ls[i]);
-						//System.out.print(toGoal);
-						rc.move(toGoal);
-						rc.yield();
-					}
-					
-				}
-				
+			}
+			else{
+				moveCount=0;
+				mode=-1;
 			}
 		}
-		catch (Exception ex) {
-			System.out.print(ex);
-		}
+
 	}
 	
 }
