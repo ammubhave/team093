@@ -7,6 +7,9 @@ import java.util.*;
 public class SoldierRobot extends BaseRobot {
 	
 	private int moveCount=0;
+	private int mode=0;//0-do nothing, 1-moving somewhere
+	private MapLocation destination = new MapLocation(5,0);
+	private MapLocation[] ls = null;
 	
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
@@ -54,9 +57,7 @@ public class SoldierRobot extends BaseRobot {
 	
 	@Override
 	public void run() throws GameActionException {
-		MapLocation destination = new MapLocation(5,0);
-		MapLocation[] ls = null;
-		int mode=0;//0-do nothing, 1-moving somewhere
+
 		//scan for nearbyEnemies, decide whether or not to attack
 		Robot[] nearbyEnemies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam().opponent());
 		if (nearbyEnemies.length > 0) {
@@ -87,6 +88,7 @@ public class SoldierRobot extends BaseRobot {
 					//System.out.print(ls[i]);
 					//System.out.print(toGoal);
 					rc.move(toGoal);
+					moveCount++;
 				}
 			}
 			else{
