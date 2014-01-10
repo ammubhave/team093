@@ -5,7 +5,7 @@ import battlecode.common.*;
 import java.util.*;
 
 public abstract class BaseRobot {
-	
+
 	public boolean[][] booleanMap;
 	public TerrainTile[][] terrainMap;
 	/*public TerrainTile getTerrainMap(int x, int y) {
@@ -62,7 +62,7 @@ public abstract class BaseRobot {
 	public abstract void run() throws GameActionException;
 	
 	public void loop() throws GameActionException {
-		while(true) {			
+		while(true) {
 				run();
 			rc.yield();
 		}
