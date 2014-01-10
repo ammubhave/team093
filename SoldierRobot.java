@@ -8,6 +8,7 @@ public class SoldierRobot extends BaseRobot {
 	
 	private int moveCount=0;
 	private int mode=0;//0-do nothing, 1-moving somewhere
+	private int buildPastr=0;
 	private MapLocation destination = new MapLocation(5,0);
 	private MapLocation[] ls = null;
 	
@@ -48,7 +49,7 @@ public class SoldierRobot extends BaseRobot {
 	
 	//returns ideal location to place a new pasture
 	private MapLocation newPastureLocation(){
-		return new MapLocation(10,10);
+		return new MapLocation(20,20);
 	}
 	
 	private MapLocation shouldIAttack(Robot[] nearbyEnemies){
@@ -71,6 +72,7 @@ public class SoldierRobot extends BaseRobot {
 		MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
 		if(myPastrLocations.length==0&&mode==0){
 			destination=newPastureLocation();
+			buildPastr=1;
 		}
 		else{
 			//heard heard(pasture, location) 
@@ -92,6 +94,10 @@ public class SoldierRobot extends BaseRobot {
 				}
 			}
 			else{
+				if(buildPastr==1){
+					rc.construct(RobotType.PASTR);
+					buildPastr=0;
+				}
 				moveCount=0;
 				mode=-1;
 			}
