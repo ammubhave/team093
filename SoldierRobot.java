@@ -4,6 +4,26 @@ import battlecode.common.*;
 
 import java.util.*;
 
+
+class GoalTestIfDestination implements Callable<MapLocation, Boolean> {
+	MapLocation destination;
+	public GoalTestIfDestination(MapLocation destination) {
+		this.destination = destination;
+	}
+	public Boolean call(MapLocation input) {
+		return this.destination == input;
+	}
+};
+class HeuristicManhattanDistance implements Callable<MapLocation, Double> {
+	MapLocation destination;
+	public HeuristicManhattanDistance(MapLocation destination) {
+		this.destination = destination;
+	}
+	public Double call(MapLocation input) {
+		return 10 * Math.sqrt(input.distanceSquaredTo(this.destination));
+	}
+};
+
 public class SoldierRobot extends BaseRobot {
 	
 	private int moveCount=0;
@@ -56,6 +76,8 @@ public class SoldierRobot extends BaseRobot {
 		return new MapLocation(-1,-1);
 	}
 	
+	
+	
 	@Override
 	public void run() throws GameActionException {
 
@@ -78,7 +100,9 @@ public class SoldierRobot extends BaseRobot {
 			//heard heard(pasture, location) 
 		}
 		if(mode==0){
-			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
+			
+			
+			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, new HeuristicManhattanDistance(destination))).getPathTo(new GoalTestIfDestination(destination));
 			mode=1;
 		}
 		if (rc.isActive()&&mode==1) {
@@ -106,3 +130,4 @@ public class SoldierRobot extends BaseRobot {
 	}
 	
 }
+
