@@ -47,7 +47,7 @@ public class HQRobot extends BaseRobot {
 		//Check if a robot is spawnable and spawn one if it is
 		if (rc.isActive()){
 			//spawn more robots
-			if(rc.senseRobotCount() < 25) {
+			if(rc.senseRobotCount() < 2) {
 
 				Direction toEnemy = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
 				if (rc.senseObjectAtLocation(rc.getLocation().add(toEnemy)) == null) {
