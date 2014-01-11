@@ -7,9 +7,21 @@ import java.util.*;
 public class SoldierRobot extends BaseRobot {
 	
 	private int moveCount=0;
-	private int mode=0;//0-do nothing, 1-moving somewhere, 2-sneaking somewhere
+	
+	//define enums
+	enum TravelMode {IDLE, MOVING, SNEAKING, WAITING};
+	enum HerdMode {NOT_HERDING, HERDING, SNEAKOUT};
+	boolean shouldBuildPastrAtDestination = false;
+	
+	//currentMode tracks whether robot is idle, sneaking, or running
+	TravelMode currentMode = TravelMode.IDLE;
+	
+	//FOR SETTLERS: currentHerdMode tracks what phase of herding robot is in.
+	HerdMode currentHerdMode = HerdMode.NOT_HERDING;
+	
+	//private int mode=0;//0-do nothing, 1-moving somewhere, 2-sneaking somewhere
 	private int buildPastr=0;
-	private int herdMode=-1; //-1-not herding, 0-herdin, 1-sneakout
+	//private int herdMode=-1; //-1-not herding, 0-herdin, 1-sneakout
 	private MapLocation destination = new MapLocation(0,29);
 	private MapLocation[] ls = null;
 	
@@ -66,23 +78,23 @@ public class SoldierRobot extends BaseRobot {
 	}
 	
 	private void herd() throws GameActionException{
-		if(herdMode==-1){
-			herdMode=0;
+		if(currentHerdMode== HerdMode.NOT_HERDING){
+			currentHerdMode = HerdMode.HERDING;
 		}
 		//herd in
-		if(herdMode==0){
+		if(currentHerdMode==HerdMode.HERDING){
 			destination=intToLoc(rc.readBroadcast(1000));
 			destination=new MapLocation(destination.x-1,destination.y+1);
 			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
-			mode=1;
+			currentMode= TravelMode.MOVING;
 		}
 		//sneak out
-		else if(herdMode==1){
+		else if(currentHerdMode==HerdMode.SNEAKOUT){
 			System.out.println("heard out");
 			destination=intToLoc(rc.readBroadcast(1000));
 			destination=new MapLocation(destination.x-1,destination.y+29);
 			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
-			mode=2;
+			currentMode = TravelMode.SNEAKING;
 		}
 	}
 	
@@ -100,19 +112,19 @@ public class SoldierRobot extends BaseRobot {
 		
 		//sense nearby pastrs, build one if there aren't any
 		MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
-		if(myPastrLocations.length==0&&mode==0&&rc.readBroadcast(1000)==0){
+		if(myPastrLocations.length==0&& currentMode== TravelMode.IDLE &&rc.readBroadcast(1000)==0){
 			destination=newPastureLocation();
 			buildPastr=1;
 			rc.broadcast(1000, locToInt(destination));
 		}
-		if(myPastrLocations.length>0&&mode==-1){
+		if(myPastrLocations.length>0 && currentMode== TravelMode.WAITING){
 			herd();
 		}
-		if(mode==0){
+		if(currentMode==TravelMode.IDLE){
 			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
-			mode=1;
+			currentMode=TravelMode.MOVING;
 		}
-		if (rc.isActive()&&mode>=1) {
+		if (rc.isActive()&& (currentMode == TravelMode.MOVING || currentMode == TravelMode.SNEAKING)) {
 			//System.out.print(ls.length);System.out.flush();
 			if(moveCount<ls.length-1){
 				//System.out.print(ls[i]);
@@ -120,10 +132,10 @@ public class SoldierRobot extends BaseRobot {
 				if (rc.canMove(toGoal)) {
 					//System.out.print(ls[i]);
 					//System.out.print(toGoal);
-					if(mode==1){
+					if(currentMode == TravelMode.MOVING){
 						rc.move(toGoal);
 					}
-					else if(mode==2){
+					else if(currentMode == TravelMode.SNEAKING){
 						rc.sneak(toGoal);
 					}
 					moveCount++;
@@ -135,14 +147,14 @@ public class SoldierRobot extends BaseRobot {
 					rc.construct(RobotType.PASTR);
 					buildPastr=0;
 				}
-				if(herdMode==0){
-					herdMode=1;
+				if(currentHerdMode==HerdMode.HERDING){
+					currentHerdMode= HerdMode.SNEAKOUT;
 				}
-				else if(herdMode==1){
-					herdMode=0;
+				else if(currentHerdMode==HerdMode.SNEAKOUT){
+					currentHerdMode=HerdMode.HERDING;
 				}
 				moveCount=0;
-				mode=-1;
+				currentMode = TravelMode.WAITING;
 			}
 		}
 
