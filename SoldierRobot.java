@@ -11,17 +11,21 @@ public class SoldierRobot extends BaseRobot {
 	//define enums
 	enum TravelMode {IDLE, MOVING, SNEAKING, WAITING};
 	enum HerdMode {NOT_HERDING, HERDING, SNEAKOUT};
-	boolean shouldBuildPastrAtDestination = false;
+	
 	
 	//currentMode tracks whether robot is idle, sneaking, or running
 	TravelMode currentMode = TravelMode.IDLE;
 	
-	//FOR SETTLERS: currentHerdMode tracks what phase of herding robot is in.
-	HerdMode currentHerdMode = HerdMode.NOT_HERDING;
+	//FOR SETTLERS:
+	boolean shouldBuildPastrAtDestination = false;
 	
-	//private int mode=0;//0-do nothing, 1-moving somewhere, 2-sneaking somewhere
-	private int buildPastr=0;
-	//private int herdMode=-1; //-1-not herding, 0-herdin, 1-sneakout
+	
+	//FOR HERDERS: 
+	HerdMode currentHerdMode = HerdMode.NOT_HERDING;  //currentHerdMode tracks what phase of herding robot is in.
+	
+	
+	
+	//private int buildPastr=0;
 	private MapLocation destination = new MapLocation(0,29);
 	private MapLocation[] ls = null;
 	
@@ -114,7 +118,7 @@ public class SoldierRobot extends BaseRobot {
 		MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
 		if(myPastrLocations.length==0&& currentMode== TravelMode.IDLE &&rc.readBroadcast(1000)==0){
 			destination=newPastureLocation();
-			buildPastr=1;
+			shouldBuildPastrAtDestination = true;
 			rc.broadcast(1000, locToInt(destination));
 		}
 		if(myPastrLocations.length>0 && currentMode== TravelMode.WAITING){
@@ -143,9 +147,9 @@ public class SoldierRobot extends BaseRobot {
 			}
 			else{
 				System.out.println("arrived");
-				if(buildPastr==1){
+				if(shouldBuildPastrAtDestination){
 					rc.construct(RobotType.PASTR);
-					buildPastr=0;
+					shouldBuildPastrAtDestination = false;
 				}
 				if(currentHerdMode==HerdMode.HERDING){
 					currentHerdMode= HerdMode.SNEAKOUT;
