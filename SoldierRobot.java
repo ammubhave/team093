@@ -6,15 +6,20 @@ import java.util.*;
 
 public class SoldierRobot extends BaseRobot {
 	
-	private int moveCount=0;
-	
-	//define enums
+	//definitions
+	enum SoldierMode {SETTLER, HERDER, DEFENDER, DESTROYER};
 	enum TravelMode {IDLE, MOVING, SNEAKING, WAITING};
 	enum HerdMode {NOT_HERDING, HERDING, SNEAKOUT};
+	enum DestroyerMode {GROUPING, CHARGING, DESTROYING};
 	
+	//Path Detection and finding:
+	private int moveCount=0;
+	private MapLocation destination = new MapLocation(0,29);
+	private MapLocation[] ls = null;
 	
-	//currentMode tracks whether robot is idle, sneaking, or running
-	TravelMode currentMode = TravelMode.IDLE;
+	//FOR ALL:
+	TravelMode currentMode = TravelMode.IDLE; //currentMode tracks whether robot is idle, sneaking, or running
+	SoldierMode currentRole;
 	
 	//FOR SETTLERS:
 	boolean shouldBuildPastrAtDestination = false;
@@ -23,15 +28,17 @@ public class SoldierRobot extends BaseRobot {
 	//FOR HERDERS: 
 	HerdMode currentHerdMode = HerdMode.NOT_HERDING;  //currentHerdMode tracks what phase of herding robot is in.
 	
+	//FOR DESTROYERS:
+	short destroyerGroup = 0;
 	
 	
-	//private int buildPastr=0;
-	private MapLocation destination = new MapLocation(0,29);
-	private MapLocation[] ls = null;
+	
+	
 	
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
 		readTerrain(rc.getMapWidth(),rc.getMapHeight());
+		determineInitialSoldierMode(rc);
 		
 	}
 	private void readTerrain(int width, int height) throws GameActionException{
@@ -61,6 +68,36 @@ public class SoldierRobot extends BaseRobot {
 			System.out.println(" ");
 		}
 		*/
+		
+	}
+	
+	//INCOMPLETE: This method is a placeholder; we need to program it with the real algorithm we'll use
+	private void determineInitialSoldierMode (RobotController rc) {
+		//temporary method, but assuming we have no noise towers:
+		
+		
+		int actualRobotCount = senseActualRobotCount(rc);
+		
+		switch(actualRobotCount)
+		{
+		//for now, first four robots will be settlers/herders for David to work with
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+			currentRole = SoldierMode.SETTLER;
+			break;
+		//next 3 robots will be destroyers; Alan is programming them
+		case 5:
+		case 6:
+		case 7:
+			currentRole = SoldierMode.DESTROYER;
+			break;
+			
+		}
+		
+
+		rc.setIndicatorString(0, "" + currentRole);
 		
 	}
 	
@@ -105,7 +142,7 @@ public class SoldierRobot extends BaseRobot {
 	@Override
 	public void run() throws GameActionException {
 
-		//scan for nearbyEnemies, decide whether or not to attack
+		//SELF-DEFENSE FUNCTION: scan for nearbyEnemies, decide whether or not to attack
 		Robot[] nearbyEnemies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam().opponent());
 		if (nearbyEnemies.length > 0) {
 			MapLocation attack = shouldIAttack(nearbyEnemies);
@@ -114,52 +151,65 @@ public class SoldierRobot extends BaseRobot {
 			}
 		}
 		
-		//sense nearby pastrs, build one if there aren't any
-		MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
-		if(myPastrLocations.length==0&& currentMode== TravelMode.IDLE &&rc.readBroadcast(1000)==0){
-			destination=newPastureLocation();
-			shouldBuildPastrAtDestination = true;
-			rc.broadcast(1000, locToInt(destination));
-		}
-		if(myPastrLocations.length>0 && currentMode== TravelMode.WAITING){
-			herd();
-		}
-		if(currentMode==TravelMode.IDLE){
-			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
-			currentMode=TravelMode.MOVING;
-		}
-		if (rc.isActive()&& (currentMode == TravelMode.MOVING || currentMode == TravelMode.SNEAKING)) {
-			//System.out.print(ls.length);System.out.flush();
-			if(moveCount<ls.length-1){
-				//System.out.print(ls[i]);
-				Direction toGoal = ls[moveCount].directionTo(ls[moveCount+1]);
-				if (rc.canMove(toGoal)) {
+		
+		//ROLE-SPECIFIC ACTION LOOP, separated by if-else statements for each Role
+		if (currentRole == SoldierMode.SETTLER || currentRole == SoldierMode.HERDER) {
+			
+			
+			//SETTLERS and HERDER LOOP (we'll have to divide this into two later)
+			MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
+			if(myPastrLocations.length==0&& currentMode== TravelMode.IDLE &&rc.readBroadcast(1000)==0){
+				destination=newPastureLocation();
+				shouldBuildPastrAtDestination = true;
+				rc.broadcast(1000, locToInt(destination));
+			}
+			if(myPastrLocations.length>0 && currentMode== TravelMode.WAITING){
+				herd();
+			}
+			if(currentMode==TravelMode.IDLE){
+				ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
+				currentMode=TravelMode.MOVING;
+			}
+			if (rc.isActive()&& (currentMode == TravelMode.MOVING || currentMode == TravelMode.SNEAKING)) {
+				//System.out.print(ls.length);System.out.flush();
+				if(moveCount<ls.length-1){
 					//System.out.print(ls[i]);
-					//System.out.print(toGoal);
-					if(currentMode == TravelMode.MOVING){
-						rc.move(toGoal);
+					Direction toGoal = ls[moveCount].directionTo(ls[moveCount+1]);
+					if (rc.canMove(toGoal)) {
+						//System.out.print(ls[i]);
+						//System.out.print(toGoal);
+						if(currentMode == TravelMode.MOVING){
+							rc.move(toGoal);
+						}
+						else if(currentMode == TravelMode.SNEAKING){
+							rc.sneak(toGoal);
+						}
+						moveCount++;
 					}
-					else if(currentMode == TravelMode.SNEAKING){
-						rc.sneak(toGoal);
+				}
+				else{
+					System.out.println("arrived");
+					if(shouldBuildPastrAtDestination){
+						rc.construct(RobotType.PASTR);
+						shouldBuildPastrAtDestination = false;
 					}
-					moveCount++;
+					if(currentHerdMode==HerdMode.HERDING){
+						currentHerdMode= HerdMode.SNEAKOUT;
+					}
+					else if(currentHerdMode==HerdMode.SNEAKOUT){
+						currentHerdMode=HerdMode.HERDING;
+					}
+					moveCount=0;
+					currentMode = TravelMode.WAITING;
 				}
 			}
-			else{
-				System.out.println("arrived");
-				if(shouldBuildPastrAtDestination){
-					rc.construct(RobotType.PASTR);
-					shouldBuildPastrAtDestination = false;
-				}
-				if(currentHerdMode==HerdMode.HERDING){
-					currentHerdMode= HerdMode.SNEAKOUT;
-				}
-				else if(currentHerdMode==HerdMode.SNEAKOUT){
-					currentHerdMode=HerdMode.HERDING;
-				}
-				moveCount=0;
-				currentMode = TravelMode.WAITING;
-			}
+			
+			
+			
+		}
+		// DESTROYER LOOP
+		else if (currentRole == SoldierMode.DESTROYER) {
+			
 		}
 
 	}
