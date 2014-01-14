@@ -13,10 +13,11 @@ public abstract class BaseRobot {
 		return terrainMap[x][y];
 	}*/
 	
+	public double cowGrowth[][];
 	public final RobotController rc;
 	public BaseRobot(RobotController rc) throws GameActionException {
 		this.rc = rc;
-		
+		this.cowGrowth = rc.senseCowGrowth();
 	}
 	
 	//returns actual number of robots
@@ -24,7 +25,7 @@ public abstract class BaseRobot {
 		int weightedRobotCount = rc.senseRobotCount();
 		int pastrCount = rc.sensePastrLocations(rc.getTeam()).length;
 		
-		System.out.println("Robot Count: Weighted - " + weightedRobotCount + " pastr - " + pastrCount + "actual - " + (weightedRobotCount - pastrCount));
+	//	System.out.println("Robot Count: Weighted - " + weightedRobotCount + " pastr - " + pastrCount + "actual - " + (weightedRobotCount - pastrCount));
 		
 		return weightedRobotCount - pastrCount;
 		
@@ -59,11 +60,11 @@ public abstract class BaseRobot {
 		
 		TerrainTile[][] fieldGrid = new TerrainTile[width][height];
 		
-		for (int x = 0; x < height ; x++ )
+		for (int x = 0; x < width ; x++ )
 		{
-			for (int y = 0; y < width; y++)
+			for (int y = 0; y < height; y++)
 			{				
-				fieldGrid[y][x] =  rc.senseTerrainTile(new MapLocation(x,y));
+				fieldGrid[x][y] =  rc.senseTerrainTile(new MapLocation(x,y));
 			}
 		}
 		

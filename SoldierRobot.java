@@ -76,7 +76,7 @@ public class SoldierRobot extends BaseRobot {
 		//temporary method, but assuming we have no noise towers:
 		
 		
-		int actualRobotCount = senseActualRobotCount(rc);
+		int actualRobotCount = this.senseActualRobotCount(rc);
 		
 		switch(actualRobotCount)
 		{
@@ -111,7 +111,32 @@ public class SoldierRobot extends BaseRobot {
 	
 	//returns ideal location to place a new pasture
 	private MapLocation newPastureLocation(){
-		return new MapLocation(29,0);
+		
+		class GoalTestIdealPastureLocation implements Callable<MapLocation, Boolean> {
+			double cowGrowth[][];
+			TerrainTile terrainMap[][];
+			public GoalTestIdealPastureLocation(double cowGrowth[][], TerrainTile terrainMap[][]) {
+				this.cowGrowth = cowGrowth;
+				this.terrainMap = terrainMap;
+			}
+			public Boolean call(MapLocation input) {
+				for (int i = input.x > 0 ? input.x - 1 : input.x; i <= ((input.x < this.cowGrowth.length - 1) ? input.x + 1 : input.x); i++)
+					for (int j = input.y > 0 ? input.y - 1 : input.y; j <= ((input.y < this.cowGrowth[0].length - 1) ? input.y + 1 : input.y); j++) {
+						if (input.x == 24 && input.y == 31) {
+							//System.out.println(this.cowGrowth[i][j]);							
+						}
+						if (this.cowGrowth[i][j] == 0 || terrainMap[i][j] != TerrainTile.NORMAL)
+							return false;
+					}
+				System.out.println("$$$$$$$$$$$$$");
+				return true;
+			}
+		};
+		MapLocation locs[] = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, new GoalTestIdealPastureLocation(this.cowGrowth, this.terrainMap))).getPathTo(destination);
+		System.out.print(locs[locs.length - 1]);
+		return locs[locs.length - 1];
+		
+		//return new MapLocation(20,10);
 	}
 	
 	private MapLocation shouldIAttack(Robot[] nearbyEnemies){
