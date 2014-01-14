@@ -1,4 +1,4 @@
 
 public interface Callable <I, O> {
-	public static O call (I input);
+	public O call (I input);
 }
