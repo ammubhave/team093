@@ -19,6 +19,17 @@ public abstract class BaseRobot {
 		
 	}
 	
+	//returns actual number of robots
+	int senseActualRobotCount(RobotController rc) {
+		int weightedRobotCount = rc.senseRobotCount();
+		int pastrCount = rc.sensePastrLocations(rc.getTeam()).length;
+		
+		System.out.println("Robot Count: Weighted - " + weightedRobotCount + " pastr - " + pastrCount + "actual - " + (weightedRobotCount - pastrCount));
+		
+		return weightedRobotCount - pastrCount;
+		
+	}
+	
 	//creates 2D boolean array indicating whether each map point can be moved into
 	public boolean[][] senseBooleanMap(RobotController rc) {
 		
