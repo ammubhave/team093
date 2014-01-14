@@ -4,7 +4,10 @@ import battlecode.common.*;
 
 import java.util.*;
 
+import javax.swing.event.HyperlinkEvent;
+
 public class SoldierRobot extends BaseRobot {
+	int cid;
 	
 	//definitions
 	enum SoldierMode {SETTLER, HERDER, DEFENDER, DESTROYER};
@@ -77,7 +80,7 @@ public class SoldierRobot extends BaseRobot {
 		
 		
 		int actualRobotCount = this.senseActualRobotCount(rc);
-		
+		cid = actualRobotCount;
 		switch(actualRobotCount)
 		{
 		//for now, first four robots will be settlers/herders for David to work with
@@ -128,11 +131,11 @@ public class SoldierRobot extends BaseRobot {
 						if (this.cowGrowth[i][j] == 0 || terrainMap[i][j] != TerrainTile.NORMAL)
 							return false;
 					}
-				System.out.println("$$$$$$$$$$$$$");
+				//System.out.println("$$$$$$$$$$$$$");
 				return true;
 			}
 		};
-		MapLocation locs[] = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, new GoalTestIdealPastureLocation(this.cowGrowth, this.terrainMap))).getPathTo(destination);
+		MapLocation locs[] = (new MapPathSearchNode(this, rc.getLocation(), null, 0, new GoalTestIdealPastureLocation(this.cowGrowth, this.terrainMap))).getPathTo(destination);
 		System.out.print(locs[locs.length - 1]);
 		return locs[locs.length - 1];
 		
@@ -149,17 +152,31 @@ public class SoldierRobot extends BaseRobot {
 		}
 		//herd in
 		if(currentHerdMode==HerdMode.HERDING){
+			while (rc.readBroadcast(1000) == 0) {
+				System.out.print(rc.readBroadcast(1000));
+				//rc.yield(); 
+			}
+			
 			destination=intToLoc(rc.readBroadcast(1000));
+			//System.out.print(destination);
 			destination=new MapLocation(destination.x-1,destination.y+1);
-			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
+			System.out.println(destination);
+			ls = (new MapPathSearchNode(this, rc.getLocation(), null, 0, new GoalTestIfDestination(destination), new HeuristicManhattanDistance(destination))).getPathTo(destination);
+			System.out.println(ls);
 			currentMode= TravelMode.MOVING;
 		}
 		//sneak out
 		else if(currentHerdMode==HerdMode.SNEAKOUT){
+			while (rc.readBroadcast(1000) == 0) {
+				System.out.print(rc.readBroadcast(1000));
+			//	rc.yield(); 
+			}
 			System.out.println("heard out");
 			destination=intToLoc(rc.readBroadcast(1000));
-			destination=new MapLocation(destination.x-1,destination.y+29);
-			ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
+			destination=new MapLocation(destination.x-1,destination.y+1);
+			System.out.println(destination);
+			ls = (new MapPathSearchNode(this, rc.getLocation(), null, 0, new GoalTestIfDestination(destination), new HeuristicManhattanDistance(destination))).getPathTo(destination);
+			System.out.println(ls);
 			currentMode = TravelMode.SNEAKING;
 		}
 	}
@@ -176,29 +193,59 @@ public class SoldierRobot extends BaseRobot {
 			}
 		}
 		
-		
 		//ROLE-SPECIFIC ACTION LOOP, separated by if-else statements for each Role
 		if (currentRole == SoldierMode.SETTLER || currentRole == SoldierMode.HERDER) {
 			
 			
 			//SETTLERS and HERDER LOOP (we'll have to divide this into two later)
 			MapLocation[] myPastrLocations = rc.sensePastrLocations(rc.getTeam());
-			if(myPastrLocations.length==0&& currentMode== TravelMode.IDLE &&rc.readBroadcast(1000)==0){
+			if(myPastrLocations.length==0 && currentMode== TravelMode.IDLE && rc.readBroadcast(1000)==0){
 				destination=newPastureLocation();
+				this.terrainMap[destination.x][destination.y] = TerrainTile.OFF_MAP;
 				shouldBuildPastrAtDestination = true;
 				rc.broadcast(1000, locToInt(destination));
+				//currentMode = TravelMode.SNEAKING;
+			} else {
+				while (myPastrLocations.length == 0 && cid > 1) {
+					myPastrLocations = rc.sensePastrLocations(rc.getTeam());
+					rc.yield();
+				}
 			}
-			if(myPastrLocations.length>0 && currentMode== TravelMode.WAITING){
+			
+			if(myPastrLocations.length>0 && currentMode == TravelMode.WAITING){
+				
 				herd();
 			}
+			this.terrainMap[intToLoc(rc.readBroadcast(1000)).x][intToLoc(rc.readBroadcast(1000)).y] = TerrainTile.OFF_MAP;  
 			if(currentMode==TravelMode.IDLE){
-				ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, destination)).getPathTo(destination);
-				currentMode=TravelMode.MOVING;
+				//ls = (new MapPathSearchNode(terrainMap, rc.getLocation(), null, 0, new GoalTestIfDestination(destination), new HeuristicManhattanDistance(destination))).getPathTo(destination);
+				//herd();
+				if (cid > 1)
+					destination = intToLoc(rc.readBroadcast(1000));
+				switch(cid) {
+				case 4:
+					destination = new MapLocation(destination.x > 0 ? destination.x - 1: destination.x, destination.y);
+					break;
+				case 2:
+					destination = new MapLocation(destination.x, destination.y > 0 ? destination.y - 1: destination.y);
+					break;
+				case 3:
+					destination = new MapLocation(destination.x < this.terrainMap.length - 1 ? destination.x + 1 : destination.x, destination.y);
+					break;
+				}
+				this.terrainMap[destination.x][destination.y] = TerrainTile.OFF_MAP;
+				//System.out.print(destination);
+				//destination=new MapLocation(destination.x-1,destination.y+1);
+				System.out.println(destination);
+				ls = (new MapPathSearchNode(this, rc.getLocation(), null, 0, new GoalTestIfDestination(destination), new HeuristicManhattanDistance(destination))).getPathTo(destination);
+				
+				currentMode = TravelMode.SNEAKING;
 			}
 			if (rc.isActive()&& (currentMode == TravelMode.MOVING || currentMode == TravelMode.SNEAKING)) {
 				//System.out.print(ls.length);System.out.flush();
 				if(moveCount<ls.length-1){
-					//System.out.print(ls[i]);
+					System.out.print(ls[moveCount]);
+					
 					Direction toGoal = ls[moveCount].directionTo(ls[moveCount+1]);
 					if (rc.canMove(toGoal)) {
 						//System.out.print(ls[i]);
@@ -210,6 +257,24 @@ public class SoldierRobot extends BaseRobot {
 							rc.sneak(toGoal);
 						}
 						moveCount++;
+					} else {
+					/*	System.out.println(rc.getLocation());
+						SoldierRobot rb = new SoldierRobot(rc);
+						rb.terrainMap = new TerrainTile[this.terrainMap.length][this.terrainMap[0].length];
+						for (int i = 0; i < this.terrainMap.length; i++)
+							for (int j = 0; j < this.terrainMap[0].length; j++)
+							{
+								rb.terrainMap[i][j] = this.terrainMap[i][j];
+								if (i >= destination.x - 1 && i <= destination.x + 1 && j >= destination.y - 1 && j <= destination.y + 1) {
+									if (!rc.canMove(rc.getLocation().directionTo(new MapLocation(i, j)))) {
+										System.out.print(i); System.out.println(j);
+										rb.terrainMap[i][j] = TerrainTile.VOID;
+									}
+								}				
+							}
+						ls = (new MapPathSearchNode(rb, rc.getLocation(), null, 0, new GoalTestIfDestination(destination), new HeuristicManhattanDistance(destination))).getPathTo(destination);
+						System.out.println("$$$$$$$$$$$");
+						moveCount = 0;*/
 					}
 				}
 				else{
@@ -226,6 +291,37 @@ public class SoldierRobot extends BaseRobot {
 					}
 					moveCount=0;
 					currentMode = TravelMode.WAITING;
+					
+					Direction direction = Direction.SOUTH;
+					switch (cid) {
+					case 2:
+						direction = Direction.NORTH;
+						break;
+					case 3:
+						direction = Direction.EAST;
+						break;
+					case 4:
+						direction = Direction.WEST;
+						break;
+					}
+					currentMode = TravelMode.SNEAKING;
+					while(true) {
+						if(rc.canMove(direction) && cid > 1 && rc.isActive()) {
+							if (currentMode == TravelMode.SNEAKING)
+								rc.sneak(direction);
+							else
+								rc.move(direction);
+						}
+						if (!rc.canMove(direction) && currentMode == TravelMode.SNEAKING) {
+							direction = direction.opposite();
+							currentMode = TravelMode.MOVING;
+						} else if(!rc.canMove(direction) && currentMode == TravelMode.MOVING) {
+							direction = direction.opposite();
+							currentMode = TravelMode.SNEAKING;
+						}
+						rc.yield();
+					}
+					//currentMode = TravelMode.WAITING;
 				}
 			}
 			

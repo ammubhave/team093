@@ -31,7 +31,7 @@ public class RobotPlayer {
 				
 			br.loop();
 		}	catch (GameActionException ex) {
-			
+			System.out.println(ex.getMessage());
 		}
 	}
 }
