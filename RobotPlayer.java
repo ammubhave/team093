@@ -1,14 +1,10 @@
 package team093;
 
-import battlecode.common.Direction;
-import battlecode.common.GameConstants;
+import battlecode.common.GameActionException;
 import battlecode.common.RobotController;
-import battlecode.common.RobotType;
-import battlecode.common.*;
-import java.util.*;
 
 public class RobotPlayer {
-	static Random rand;
+	//static Random rand;
 	
 	public static void run(RobotController rc) {
 		BaseRobot br = null;
@@ -25,13 +21,13 @@ public class RobotPlayer {
 					br = new PastrRobot(rc);
 					break;
 				case NOISETOWER:
-					br = new NoisetowerRobot(rc);
+					br = new NoiseTowerRobot(rc);
 					break;
 			}		
 				
 			br.loop();
 		}	catch (GameActionException ex) {
-			System.out.println(ex.getMessage());
+				System.out.println(ex.getMessage());
 		}
 	}
 }
