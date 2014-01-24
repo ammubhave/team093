@@ -117,10 +117,92 @@ public class SoldierRobot extends BaseRobot{
 	}
 */	
 	
+//	public MapLocation goodPastrLocation(){
+//		
+//		return new MapLocation(rc.senseHQLocation().x+2,rc.senseHQLocation().y+2);
+//	}
+	
 	public MapLocation goodPastrLocation(){
+		//width, then height
+		int BS=5;
+		int width=rc.getMapWidth();
+		int height=rc.getMapHeight();
+		double[][] avgGrowth=new double[width][height];
+		//first block, top left
+		for (int a=0; a<BS; a++){
+			for (int b=0; b<BS; b++){
+				avgGrowth[2][2]+=cowGrowth[a][b];
+			}
+		}
+		avgGrowth[2][2]/=(BS*BS);
+		//horizontal blocks
+		for (int i=3; i<width-2; i++){
+			avgGrowth[i][2]=avgGrowth[i-1][2];
+			for (int a=0; a<5; a++){
+				avgGrowth[i][2]+=cowGrowth[i+2][a]/BS/BS-cowGrowth[i-3][a]/BS/BS;
+			}
+		}
+		for (int j=3; j<height/2; j++){
+			for (int i=2; i<width-2; i++){
+				avgGrowth[i][j]=avgGrowth[i][j-1];
+				for (int a=0; a<5; a++){
+					avgGrowth[i][j]+=cowGrowth[i+a-2][j+2]/BS/BS-cowGrowth[i+a-2][j-3]/BS/BS;
+				}
+			}
+		}
+		for (int i=width-3; i>=2; i--){
+			for (int j=height-3; j>=height/2; j--){
+				avgGrowth[i][j]=avgGrowth[width-i-1][height-j-1];
+			}
+		}
+		MapLocation HQ=rc.senseHQLocation();
+		for (int i=2; i<width-2; i++){
+			for (int j=2; j<height-2; j++){
+				avgGrowth[i][j]/=(Math.abs(HQ.x-i)+Math.abs(HQ.y-j)+5);
+			}
+		}
+		/*
+		System.out.println("-------");
+		for (int i=0; i<width; i++){
+			for (int j=0; j<height; j++){
+				System.out.print((int)(100*avgGrowth[i][j]+.5)/100.0+"\t");
+			}
+			System.out.println();
+		}
+		System.out.println("-------");
+		*/
+//		for (int j=0; j<height; j++){
+//			for (int i=0; i<width; i++){
+//				System.out.print((int)cowGrowth[i][j]+"\t");
+//			}
+//			System.out.println();
+//		}
+//		System.out.println("-------");
 		
-		return new MapLocation(26,17);
+		for (int i = 0; i < avgGrowth.length; i++)
+			for (int j = 0; j < avgGrowth[i].length; j++)
+				if (terrainMap[i][j].ordinal() >= 1){
+					avgGrowth[i][j]=0;
+				}
+
+		double maxValue = 0;
+		int maxX=0;
+		int maxY=0;
+		
+		//System.out.println("\nMax values in 2D array: ");
+		for (int i = 0; i < avgGrowth.length; i++)
+		    for (int j = 0; j < avgGrowth[i].length; j++)
+		        if (avgGrowth[i][j] > maxValue){
+		           maxValue = avgGrowth[i][j];
+		           maxX=i;
+		           maxY=j;
+		        }
+					
+		//System.out.println("Maximum value: " + maxValue);
+		return new MapLocation(maxX,maxY);
+		
 	}
+
 	
 	public void run() throws GameActionException {
 		//if the map is ready download it
@@ -146,18 +228,25 @@ public class SoldierRobot extends BaseRobot{
 					MapLocation end = goodPastrLocation();
 					path1 = finder.findPath(start.x,start.y, end.x,end.y);
 				}
+				Robot[] nearbyRobot2 = rc.senseNearbyGameObjects(Robot.class,5,rc.getTeam());
 				if(i<path1.getLength()){
 					//System.out.println("x: "+path1.getStep(i).getX()+" y: "+path1.getStep(i).getY());
 					Direction direction = rc.getLocation().directionTo(new MapLocation(path1.getStep(i).getX(),path1.getStep(i).getY()));
 					BasicPathing.tryToMove(direction, true,true,false);
 					i++;
-				}	
+				}
+				else if(i<path1.getLength()&&nearbyRobot2.length<1&&i>=3){
+					i--;
+					Direction direction = rc.getLocation().directionTo(new MapLocation(path1.getStep(i).getX(),path1.getStep(i).getY()));
+					BasicPathing.tryToMove(direction, true,true,false);
+					
+				}
 				Robot[] nearbyRobot = rc.senseNearbyGameObjects(Robot.class,2,rc.getTeam());
 				Robot[] senseAllRobots = rc.senseNearbyGameObjects(Robot.class,1000,rc.getTeam());
 				if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length<1){
 					rc.construct(RobotType.PASTR);
 				}
-				else if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length==1&&senseAllRobots.length<=4){
+				else if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length==1){
 					rc.construct(RobotType.NOISETOWER);
 				}
 			}

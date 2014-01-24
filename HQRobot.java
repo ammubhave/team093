@@ -73,7 +73,7 @@ public class HQRobot extends BaseRobot{
 			for(int i=0;i<8;i++){
 				spawnDirection=directions[(spawnDirection.ordinal()+1)%8];
 				//senseObject uses less byte code than canMove
-				if(rc.senseObjectAtLocation(rc.getLocation().add(spawnDirection)) == null){
+				if(rc.senseObjectAtLocation(rc.getLocation().add(spawnDirection)) == null&&rc.senseTerrainTile((rc.getLocation().add(spawnDirection))).ordinal()<=1){
 					rc.spawn(spawnDirection);
 					break;
 				}
