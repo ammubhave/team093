@@ -17,6 +17,9 @@ public abstract class BaseRobot {
 	}*/
 	
 	//public double cowGrowth[][];
+	
+	final public int pastrComStart = 20001;
+	
 	public static RobotController rc;
 	public BaseRobot(RobotController rc) throws GameActionException {
 		this.rc = rc;

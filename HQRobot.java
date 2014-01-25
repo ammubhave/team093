@@ -29,10 +29,8 @@ public class HQRobot extends BaseRobot{
 		
 		TerrainTile[][] fieldGrid = new TerrainTile[width][height];
 		
-		for (int x = 0; x < width ; x++ )
-		{
-			for (int y = 0; y < height; y++)
-			{				
+		for (int x = 0; x < width ; x++ ){
+			for (int y = 0; y < height; y++){				
 				fieldGrid[x][y] =  rc.senseTerrainTile(new MapLocation(x,y));
 			}
 		}

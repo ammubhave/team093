@@ -1,6 +1,7 @@
 package team093;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 import team093.AStarPathFinder;
 import team093.BasicPathing;
@@ -30,13 +31,14 @@ public class SoldierRobot extends BaseRobot{
 	static int bigBoxSize = 5;
 	private Path path1=null;
 	private GameMap map;
-	/** The path finder we'll use to search our map */
 	private AStarPathFinder finder;
 	int i=1;
 	private double[][] cowGrowth;
+	static Random randall = new Random();
 	
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
+		randall.setSeed(rc.getRobot().getID());
 		this.cowGrowth = rc.senseCowGrowth();
 		//readTerrain(rc.getMapWidth(),rc.getMapHeight());
 	}
@@ -74,6 +76,24 @@ public class SoldierRobot extends BaseRobot{
 			System.out.println(" ");
 		}
 		*/
+	}
+	
+	//Each time this is called, it finds some random direction to move in, but always within border around roamingSite
+	//created by roam Radius
+	private void roam(RobotController rc, int roamRadius, MapLocation pivot) throws GameActionException {
+		int leftX = pivot.x - ((roamRadius -1)/2);
+		int topY = pivot.y - ((roamRadius -1)/2);
+		int randX = randall.nextInt(roamRadius);
+		int randY = randall.nextInt(roamRadius);
+
+		MapLocation randomLocation = new MapLocation(leftX + randX, topY + randY ); 
+		
+		Direction toGoal = rc.getLocation().directionTo(randomLocation);
+		if (toGoal != Direction.NONE && toGoal != Direction.OMNI) {
+			if (rc.canMove(toGoal)) {
+				rc.sneak(toGoal);
+			}
+		}
 	}
 	
 	private MapLocation findAverageAllyLocation(Robot[] alliedRobots) throws GameActionException {
@@ -178,12 +198,21 @@ public class SoldierRobot extends BaseRobot{
 //			System.out.println();
 //		}
 //		System.out.println("-------");
-		
-		for (int i = 0; i < avgGrowth.length; i++)
-			for (int j = 0; j < avgGrowth[i].length; j++)
-				if (terrainMap[i][j].ordinal() >= 1){
-					avgGrowth[i][j]=0;
+//		System.out.println(terrainMap.length);
+//		System.out.println(terrainMap[0].length);
+//		
+		//System.out.println(i+"");
+		//System.out.println(j+"");
+		for (int x = 0; x < width; x++){
+			for (int j = 0; j < height; j++){
+				//System.out.println(terrainMap[x][j]);
+				if(terrainMap[x][j] != null){
+					if (terrainMap[x][j].ordinal() >= 1){
+						avgGrowth[x][j]=0;
+					}
 				}
+			}
+		}
 
 		double maxValue = 0;
 		int maxX=0;
@@ -239,11 +268,15 @@ public class SoldierRobot extends BaseRobot{
 					i--;
 					Direction direction = rc.getLocation().directionTo(new MapLocation(path1.getStep(i).getX(),path1.getStep(i).getY()));
 					BasicPathing.tryToMove(direction, true,true,false);
-					
 				}
+				else if(i>=path1.getLength()){
+					roam(rc, 4, new MapLocation(path1.getStep(i-1).getX(),path1.getStep(i-1).getY()));
+				}
+				
 				Robot[] nearbyRobot = rc.senseNearbyGameObjects(Robot.class,2,rc.getTeam());
 				Robot[] senseAllRobots = rc.senseNearbyGameObjects(Robot.class,1000,rc.getTeam());
-				if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length<1){
+				MapLocation[] nearbyPastr = rc.sensePastrLocations(rc.getTeam());
+				if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length<3&&nearbyPastr.length<2){
 					rc.construct(RobotType.PASTR);
 				}
 				else if(i==path1.getLength()&&rc.isActive()&&nearbyRobot.length==1){
