@@ -1,12 +1,25 @@
 package team093;
 
+
+import battlecode.common.Clock;
 import battlecode.common.GameActionException;
 import battlecode.common.GameConstants;
 import battlecode.common.MapLocation;
+import battlecode.common.Robot;
 import battlecode.common.RobotController;
+import battlecode.common.RobotInfo;
+import battlecode.common.RobotType;
 
 public class NoiseTowerRobot extends BaseRobot{
 
+	//location of pastr Noise Tower is serving...
+	MapLocation pastrLoc = null;
+	
+	//heartbeat and communication channel
+	int heartbeatChannel = 0;
+	int lastHeartbeat = 0;
+	
+	
 	private MapLocation myLocation=rc.getLocation();
 	private int rootRange=17;
 	private int range2=12;
@@ -145,14 +158,66 @@ public class NoiseTowerRobot extends BaseRobot{
 				}
 			}
 		}
-		rc.attackSquare(attackLocation);
+		//TODO: if you remove this, Noise Tower explodes in blocks map...not sure why...
+		if (rc.canAttackSquare(attackLocation)) {
+			rc.attackSquare(attackLocation);
+		}
 	}
+	
+	//heartbeat function, it may be possible to remove this by making some changes, let's discuss
+	public void theBeatOfMyHeart() throws GameActionException {
+		if (Clock.getRoundNum() - lastHeartbeat > (declareDeadInterval)) {
+			lastHeartbeat = Clock.getRoundNum();
+			rc.broadcast(heartbeatChannel, Clock.getRoundNum());
+		}
+	}
+	
 
 	public void run() throws GameActionException {
-		if(rc.isActive()){
-			MapLocation closestPastr=getClosestPastr();
-			if(closestPastr!=null){
-				herd(closestPastr);
+		
+		//before doing anything else, makes sure there is a pastr close to the NoiseTower...
+		if (pastrLoc == null) {
+			Robot[] surroundingRobots = rc.senseNearbyGameObjects(Robot.class, 3, rc.getTeam());
+			
+			for (Robot each : surroundingRobots) {
+				RobotInfo info = rc.senseRobotInfo(each);
+				if (info.type == RobotType.PASTR) {
+					pastrLoc = info.location;
+				
+					rc.setIndicatorString(0, "pastr locatoin has been found");
+					
+					//now find the pastr's channel so you can heartbeat
+					int currentChannel = pastrComStart;
+					for (int n = 0; n < 13; n++) {
+						int message = rc.readBroadcast(currentChannel);
+						MapLocation eachLoc = PastrRobot.channelGetLocation(message);
+						if (eachLoc.equals(pastrLoc)) {
+							heartbeatChannel = currentChannel + 1;
+							theBeatOfMyHeart();
+							break;
+						}
+						currentChannel += 2;
+					}
+					
+					if (heartbeatChannel == 0)
+						System.out.println("Couldn't find pastr's channel! something's wrong!");
+					
+					break;
+				}
+			}
+		//now that the pastr has been identified, start heartbeating and herding...
+		} else {
+			
+			//heartbeat function
+			theBeatOfMyHeart();
+		
+			//herding function
+			//TODO: we're 'identifying closest pastr' twice with our integrated code, let's discuss this
+			if(rc.isActive()){
+				MapLocation closestPastr=getClosestPastr();
+				if(closestPastr!=null){
+					herd(closestPastr);
+				}
 			}
 		}
 	}

@@ -27,7 +27,7 @@ public class RobotPlayer {
 				
 			br.loop();
 		}	catch (GameActionException ex) {
-				System.out.println(ex.getMessage());
+				System.out.println("There was an exception: " + ex.getMessage());
 		}
 	}
 }
