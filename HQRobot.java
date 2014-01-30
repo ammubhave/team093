@@ -38,6 +38,7 @@ public class HQRobot extends BaseRobot{
 		rc.setIndicatorString(0, "Sensing and broacasting terrain map...");
 		terrainMap = senseTerrainMap(rc);
 		broadcastTerrainMap(rc.getMapWidth(),rc.getMapHeight());
+		System.out.println("Terrain map has been broadcast");
 		
 		rc.setIndicatorString(0, "setupPastrFinder(rc)");
 		//TEMPORARY: WHILE DAVID AND PATRICK EXPAND THEIR PASTR FUNCTION
@@ -449,7 +450,7 @@ public class HQRobot extends BaseRobot{
 	
 	public void managePastrs(RobotController rc, int currentTurn) throws GameActionException {
 		
-		//System.out.println("Now Managing Pastrs...");
+		System.out.println("Now Managing Pastrs...");
 		
 		//check for first Pastr that is unassigned
 		int currentChannel = pastrComStart;
@@ -458,10 +459,10 @@ public class HQRobot extends BaseRobot{
 		//here, 13 is hard-coded because there can never be more than 13 pastrs in the game
 		for (int m = 0; m < 13; m++) {
 			
-			int channelInt = rc.readBroadcast(currentChannel);
-			
+			int message = rc.readBroadcast(currentChannel);
+			//System.out.println("Checking channel " + currentChannel + " where code is " + Integer.toBinaryString(channelInt));
 			//get code
-			PastrStatus status = PastrRobot.channelGetPastrStatus(channelInt);
+			PastrStatus status = PastrRobot.channelGetPastrStatus(message);
 			
 			switch (status) {
 			case UNASSIGNED:
@@ -489,7 +490,7 @@ public class HQRobot extends BaseRobot{
 				break;
 				
 			case BUILDING:
-				int lastHeartbeat = PastrRobot.channelGetTurn(channelInt);
+				int lastHeartbeat = PastrRobot.channelGetTurn(message);
 				
 				//if robot is dead, set up that spot to be ready for a new pastr. Note: the function readyNewPastr()
 				//calls rc.broadcast().
@@ -507,7 +508,7 @@ public class HQRobot extends BaseRobot{
 			case EMERGENCY:
 			case DOOMED:
 
-				int lastTurn = PastrRobot.channelGetTurn(channelInt);
+				int lastTurn = PastrRobot.channelGetTurn(message);
 				
 				//if robot hasn't beat his heart in a while, remove him
 				if (isRobotDead(Clock.getRoundNum(),lastTurn)) {

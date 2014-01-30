@@ -22,9 +22,9 @@ public abstract class BaseRobot {
 	
 	//constant variables
 	final public int declareDeadInterval = 15; //interval at which soldier heartbeats
-	final public int pastrComStart = 20001; //broadcast channel where pastr communication starts
+	final public int pastrComStart = 50001; //broadcast channel where pastr communication starts
 	final public int membersPerGroup = 6; //number of soldiers per group, 8 is max
-	final public int firstGroupChannel = 10002; //broadcast channel where group communication starts
+	final public int firstGroupChannel = 40002; //broadcast channel where group communication starts
 	
 	public static RobotController rc;
 	public BaseRobot(RobotController rc) throws GameActionException {
