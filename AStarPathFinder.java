@@ -77,7 +77,9 @@ public class AStarPathFinder{
 		}
 		
 		// initial state for A*. The closed group is empty. Only the starting
-
+		
+		
+		//HEY DAVID HERE IS AN EASTER EGG FOR YOU
 		// tile is in the open list and it'e're already there
 		nodes[sx][sy].cost = 0;
 		nodes[sx][sy].depth = 0;

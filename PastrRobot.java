@@ -85,7 +85,7 @@ public class PastrRobot extends BaseRobot {
 	}
 	
 	
-	int pastrChannel = 0;
+	int pastrChannel = -1;
 	int lastHeartbeatTurn = 0;
 	
 	public PastrRobot(RobotController rc) throws GameActionException {
@@ -108,14 +108,14 @@ public class PastrRobot extends BaseRobot {
 			currentChannel += 2;
 		}
 		
-		if (pastrChannel == 0)
+		if (pastrChannel == -1)
 			System.out.println("no channel found!!!! what happened?");
 		
 	}
 	
 	void theBeatOfMyHeart() throws GameActionException {
 				//constant heartbeat + make sure noise tower is still around
-				if ((Clock.getRoundNum() - lastHeartbeatTurn) > declareDeadInterval - 5) {
+				if ((Clock.getRoundNum() - lastHeartbeatTurn) > declareDeadInterval ) {
 					lastHeartbeatTurn = Clock.getRoundNum();
 					int message = rc.readBroadcast(pastrChannel);
 					message = PastrRobot.channelSetTurn(Clock.getRoundNum(), message);

@@ -25,6 +25,17 @@ enum SoldierMode {UNASSIGNED, DEFENDER, DESTROYER, SOLO_SETTLER, SOLO_NOISING, N
 
 public class SoldierRobot extends BaseRobot{
 	
+	//moo!!!!
+	double[][] cowGrowthMatrix;
+	MapLocation hqLoc; //saving so it only needs to be called once (hq won't move).
+	MapLocation enemyLoc;
+	int mapWidth;
+	int mapHeight;
+	double maxAverageCowGrowth = 0;
+	final int pastrSearchRadius = 8;
+	PastrLocationStruct[] bestPastrLocations = new PastrLocationStruct[12];
+	
+	
 	private boolean gotMap = false;
 	public static MapLocation enemyHQ;
 	public static int directionalLooks[] = new int[]{0,1,-1,2,-2,3,-3,4};
@@ -63,14 +74,26 @@ public class SoldierRobot extends BaseRobot{
 	MapLocation roamingSite = null;
 	int robotID;
 	
+	//debug variables
+	boolean soldierModeAlgorithmBool = false;
+	
 	public SoldierRobot(RobotController rc) throws GameActionException {
 		super(rc);
 		rc.setIndicatorString(0, "Beginning Constructor...");
-		randall.setSeed(rc.getRobot().getID());
-		this.cowGrowth = rc.senseCowGrowth();
+
+		//this.cowGrowth = rc.senseCowGrowth();
 		//readTerrain(rc.getMapWidth(),rc.getMapHeight());
 		
 		//if no group or task is available, just roam at HQ, this should never happen for an extended period of time
+		
+		
+		
+		//If no other robot has looked up pastr locations, look for one now.
+		if (rc.readBroadcast(pastrLocationChannel) == 0) {
+			setupPastrFinder();
+		}
+		
+		randall.setSeed(rc.getRobot().getID());
 		roamingSite = rc.senseHQLocation();
 		robotID = rc.getRobot().getID();
 		rc.setIndicatorString(0, "Constructor has finished.");
@@ -87,6 +110,131 @@ public class SoldierRobot extends BaseRobot{
 				terrainMap[x][y] = rc.senseTerrainTile(new MapLocation(x,y));
 			}
 		}
+	}
+	
+	
+	
+	//PASTR SECTION: THIS is temporary while David and Patrick work on their method, when their method
+	//is complete, soldiers will assign themselves to be pastrs/settlers
+	void setupPastrFinder() throws GameActionException {
+		
+		//flag that this robot is finding the pastrs
+		rc.broadcast(pastrLocationChannel, 1);
+		rc.setIndicatorString(0, "Currently calculating pastr locations...");
+		
+		//fill up cow growth matrix
+		cowGrowthMatrix = rc.senseCowGrowth();
+		hqLoc = rc.senseHQLocation();
+		enemyLoc = rc.senseEnemyHQLocation();
+		
+		
+		mapWidth = rc.getMapWidth();
+		mapHeight = rc.getMapHeight();
+		
+		//pastrCandidates = new PastrLocationStruct[(mapWidth/pastrSearchRadius)*(mapHeight/pastrSearchRadius)];
+		
+
+		
+		for (int y = pastrSearchRadius; y < (mapHeight - pastrSearchRadius); y += pastrSearchRadius) {
+			for (int x = pastrSearchRadius; x < (mapWidth - pastrSearchRadius); x += pastrSearchRadius) {
+				
+				if (rc.senseTerrainTile(new MapLocation(x,y)) != TerrainTile.VOID && !(x == enemyLoc.x && y == enemyLoc.y)      ) {
+					double totalCowGrowth = 0;
+					double totalSquaresChecked = 0;
+					double squaresWithCowGrowth = 0;
+					int immediateSquaresWithCowGrowth = 0;
+					
+					for (int h = y - pastrSearchRadius; h < (y + pastrSearchRadius); h++ ) {
+						for (int w = x - pastrSearchRadius; w < (x + pastrSearchRadius); w++) {
+							
+							double cowGrowthHere = cowGrowthMatrix[w][h];
+							totalCowGrowth += cowGrowthHere;
+							
+							if (cowGrowthHere != 0){// && terrainMap[w][h] != TerrainTile.VOID) {
+								squaresWithCowGrowth++;
+								
+								//if squares is in immediate vicinity BUT NOT at the corners
+								if (Math.abs(y-h) < 3 && Math.abs(x-w) < 3) {
+									if (   !(Math.abs(y-h) == 2 && Math.abs(x-w) == 2)  ) {
+										immediateSquaresWithCowGrowth++;
+										//System.out.println("Cow growth at immediate location (" + w + "," + h + ") is " + cowGrowthHere   );
+									}
+								}
+								
+							}
+							
+							totalSquaresChecked++;
+							
+						}
+						
+					}
+					
+					//scoring algorithm
+					double thisScore = totalCowGrowth / ( calculateDistance(hqLoc, new MapLocation(x,y)) + 5 );
+					
+					for (int n = 0; n < bestPastrLocations.length; n++) {
+						if (bestPastrLocations[n] != null) {
+							if (thisScore > bestPastrLocations[n].score ) {
+								
+								for(int i = bestPastrLocations.length-1; i > n; i--) {
+									bestPastrLocations[i] = bestPastrLocations[i-1];
+									
+								}
+								bestPastrLocations[n] = new PastrLocationStruct();
+								bestPastrLocations[n].score = thisScore;
+								bestPastrLocations[n].loc = new MapLocation(x,y);
+								
+								break;
+							}
+							
+						} else {
+							bestPastrLocations[n] = new PastrLocationStruct();
+							bestPastrLocations[n].score = thisScore;
+							bestPastrLocations[n].loc = new MapLocation(x,y);
+							break;
+						}
+						
+						
+					}
+					
+					
+					/*
+					pastrCandidates[pastrArrayCount] = new PastrLocationStruct();
+					pastrCandidates[pastrArrayCount].fertilityGrowth = immediateSquaresWithCowGrowth;
+					pastrCandidates[pastrArrayCount].averageCowGrowth = totalCowGrowth / totalSquaresChecked;
+					pastrCandidates[pastrArrayCount].cowGrowingArea = totalSquaresChecked;
+					pastrCandidates[pastrArrayCount].loc = new MapLocation(x,y);
+					pastrCandidates[pastrArrayCount].distanceToHQ = calculateDistance(hqLoc, new MapLocation(x,y));
+					
+					if (pastrCandidates[pastrArrayCount].averageCowGrowth > maxAverageCowGrowth)
+						maxAverageCowGrowth = pastrCandidates[pastrArrayCount].averageCowGrowth;
+					
+					
+					pastrArrayCount++;*/
+				}
+				
+			}
+		}
+		
+		//broadcast everything
+		for (int n = 0; n < bestPastrLocations.length; n++) {
+			int message = 0;
+			if (bestPastrLocations[n] == null)
+				System.out.println("At index " + n + ", the pastr is null");
+			else
+				System.out.println("At index " + n + ", the pastr is not null and the location is " + bestPastrLocations[n].loc);
+			message = PastrRobot.channelSetLocation(bestPastrLocations[n].loc, message);
+			message = PastrRobot.channelSetPastrStatus(PastrStatus.READY, message);
+			rc.broadcast(pastrComStart + (n*2), message);
+			
+			
+		}
+		
+		rc.setIndicatorString(0, "finished calcualting pastr locations...");
+		
+
+		
+		
 	}
 	
 	
@@ -114,9 +262,14 @@ public class SoldierRobot extends BaseRobot{
 		int initialPastrs = 2 + ( (int) (HQdistance)/40); 
 		
 		//how many robots per pastr we then want to exist
-		int soldiersPerPastr = membersPerGroup * 2;
+		//TODO: review this
+		int soldiersPerPastr = membersPerGroup;
 		
-		
+		//report:
+		if (soldierModeAlgorithmBool == false) {
+			System.out.println("HQ Distance is " + HQdistance + " and initialSupportingRobots was " + initialSupportingRobots + " and initial Pastrs are " + initialPastrs + " and soldiers Per Pastr are " + soldiersPerPastr);
+			soldierModeAlgorithmBool = true;
+		}
 
 		int effectivePastrs = 0;
 		int effectiveNoiseTowers = 0;
@@ -125,11 +278,11 @@ public class SoldierRobot extends BaseRobot{
 		int currentChannel = pastrComStart;
 		
 		//BEGIN COUNT ALL ROBOTS ON FIELD
-		for (int n = 0; n < 13; n++) {
+		for (int n = 0; n < 12; n++) {
 			
 			int message = rc.readBroadcast(currentChannel);
 			PastrStatus status = PastrRobot.channelGetPastrStatus(message);
-			
+			//System.out.println("Checking channel " + currentChannel + " and got message " + Integer.toBinaryString(message));
 			switch (status) {
 			//if it's unassigned, keep checking next channel
 			case UNASSIGNED:
@@ -434,7 +587,7 @@ public class SoldierRobot extends BaseRobot{
 		
 		//setup destination and path
 		destination = PastrRobot.channelGetLocation(message);
-		rc.setIndicatorString(0, "getting path to " + destination.toString());
+		rc.setIndicatorString(1, "getting path to " + destination.toString());
 		setPath(rc.getLocation(),destination);
 		
 		
@@ -443,13 +596,16 @@ public class SoldierRobot extends BaseRobot{
 		
 		
 
-		rc.setIndicatorString(1, "Will create Pastr at channel " + pastrChannel);
+		//rc.setIndicatorString(1, "Will create Pastr at channel " + pastrChannel);
 		
 	}
 	
 	
 	
 	private boolean isMapReady() throws GameActionException {
+		int message = rc.readBroadcast(0);
+		rc.setIndicatorString(2, "" + message);
+		
 		if(rc.readBroadcast(0)==1){
 			return true;
 		}
@@ -549,7 +705,7 @@ public class SoldierRobot extends BaseRobot{
 	}
 
 
-	public MapLocation goodPastrLocation(){
+	/*public MapLocation goodPastrLocation(){
 		//width, then height
 		//I'm afraid to ask what BS stands for here
 		int BS=5;
@@ -610,8 +766,8 @@ public class SoldierRobot extends BaseRobot{
 //		System.out.println(terrainMap[0].length);
 //		
 		//System.out.println(i+"");
-		//System.out.println(j+"");
-		for (int x = 0; x < width; x++){
+		//System.out.println(j+"");/*
+		/*for (int x = 0; x < width; x++){
 			for (int j = 0; j < height; j++){
 				//System.out.println(terrainMap[x][j]);
 				if(terrainMap[x][j] != null){
@@ -638,7 +794,7 @@ public class SoldierRobot extends BaseRobot{
 		//System.out.println("Maximum value: " + maxValue);
 		return new MapLocation(maxX,maxY);
 		
-	}
+	}*/
 	
 	
 	private void theBeatOfMyHeart(int currentTurn) throws GameActionException {
@@ -884,7 +1040,7 @@ public class SoldierRobot extends BaseRobot{
 							//Loop for memebers of a Group
 							if (isMemberOfGroup) {
 								
-								rc.setIndicatorString(2, "Is member " + orderInGroup + " of group " + group.groupChannel + " with the role " + currentRole);
+								//rc.setIndicatorString(2, "Is member " + orderInGroup + " of group " + group.groupChannel + " with the role " + currentRole);
 								
 								if (rc.isActive()) {
 									
@@ -934,7 +1090,7 @@ public class SoldierRobot extends BaseRobot{
 					} else {
 							if (rc.isActive()) {
 								
-								rc.setIndicatorString(2, "Current role is " + currentRole);
+								//rc.setIndicatorString(2, "Current role is " + currentRole);
 								
 								if (currentRole == SoldierMode.SOLO_SETTLER) {
 									

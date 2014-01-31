@@ -16,15 +16,19 @@ public class HQRobot extends BaseRobot{
 	//Temporary pastr finding variables, will be removed when David and Patrick's method is up
 	double[][] cowGrowthMatrix;
 	MapLocation hqLoc; //saving so it only needs to be called once (hq won't move).
+	MapLocation enemyLoc;
 	int mapWidth;
 	int mapHeight;
-	Direction primaryPastrDir;
-	Direction secondaryPastrDir;
-	final int pastrSearchRadius = 3;
-	final int MinimumDistanceFromEnemyPastr = 6;
-	PastrLocationStruct[] pastrCandidates;
-	int pastrArrayCount = 0;
 	double maxAverageCowGrowth = 0;
+	final int pastrSearchRadius = 4;
+	PastrLocationStruct[] bestPastrLocations = new PastrLocationStruct[12];
+	//final int MinimumDistanceFromEnemyPastr = 6;
+	//PastrLocationStruct[] pastrCandidates;
+	//int pastrArrayCount = 0;
+	
+	
+	
+	
 	
 	MapLocation enemyPastr = null;
 	public MapLocation enemyHQLocation = rc.senseEnemyHQLocation();
@@ -40,10 +44,11 @@ public class HQRobot extends BaseRobot{
 		broadcastTerrainMap(rc.getMapWidth(),rc.getMapHeight());
 		System.out.println("Terrain map has been broadcast");
 		
-		rc.setIndicatorString(0, "setupPastrFinder(rc)");
-		//TEMPORARY: WHILE DAVID AND PATRICK EXPAND THEIR PASTR FUNCTION
-		setupPastrFinder(rc);
+		
+
 	}
+	
+
 	
 	//creates 2D TerrainTile array indicating TerrainTile types of all map points
 	private TerrainTile[][] senseTerrainMap(RobotController rc) {
@@ -226,80 +231,10 @@ public class HQRobot extends BaseRobot{
 		return false;
 	}
 	
-	//PASTR SECTION: THIS is temporary while David and Patrick work on their method, when their method
-	//is complete, soldiers will assign themselves to be pastrs/settlers
-	void setupPastrFinder(RobotController rc) {
-		
-		//fill up cow growth matrix
-		cowGrowthMatrix = rc.senseCowGrowth();
-		hqLoc = rc.getLocation();
-		
-		mapWidth = rc.getMapWidth();
-		mapHeight = rc.getMapHeight();
-		
-		pastrCandidates = new PastrLocationStruct[(mapWidth/pastrSearchRadius)*(mapHeight/pastrSearchRadius)];
-		
 
-		
-		for (int y = pastrSearchRadius; y < (mapHeight - pastrSearchRadius); y += pastrSearchRadius) {
-			for (int x = pastrSearchRadius; x < (mapWidth - pastrSearchRadius); x += pastrSearchRadius) {
-				
-				if (terrainMap[x][y] != TerrainTile.VOID) {
-					double totalCowGrowth = 0;
-					double totalSquaresChecked = 0;
-					double squaresWithCowGrowth = 0;
-					int immediateSquaresWithCowGrowth = 0;
-					
-					for (int h = y - pastrSearchRadius; h < (y + pastrSearchRadius); h++ ) {
-						for (int w = x - pastrSearchRadius; w < (x + pastrSearchRadius); w++) {
-							
-							double cowGrowthHere = cowGrowthMatrix[w][h];
-							totalCowGrowth += cowGrowthHere;
-							
-							if (cowGrowthHere != 0 && terrainMap[w][h] != TerrainTile.VOID) {
-								squaresWithCowGrowth++;
-								
-								//if squares is in immediate vicinity BUT NOT at the corners
-								if (Math.abs(y-h) < 3 && Math.abs(x-w) < 3) {
-									if (   !(Math.abs(y-h) == 2 && Math.abs(x-w) == 2)  ) {
-										immediateSquaresWithCowGrowth++;
-										//System.out.println("Cow growth at immediate location (" + w + "," + h + ") is " + cowGrowthHere   );
-									}
-								}
-								
-							}
-							
-							totalSquaresChecked++;
-							
-						}
-						
-					}
-					
-					
-					pastrCandidates[pastrArrayCount] = new PastrLocationStruct();
-					pastrCandidates[pastrArrayCount].fertilityGrowth = immediateSquaresWithCowGrowth;
-					pastrCandidates[pastrArrayCount].averageCowGrowth = totalCowGrowth / totalSquaresChecked;
-					pastrCandidates[pastrArrayCount].cowGrowingArea = totalSquaresChecked;
-					pastrCandidates[pastrArrayCount].loc = new MapLocation(x,y);
-					pastrCandidates[pastrArrayCount].distanceToHQ = calculateDistance(hqLoc, new MapLocation(x,y));
-					
-					if (pastrCandidates[pastrArrayCount].averageCowGrowth > maxAverageCowGrowth)
-						maxAverageCowGrowth = pastrCandidates[pastrArrayCount].averageCowGrowth;
-
-					
-					pastrArrayCount++;
-				}
-				
-			}
-		}
-		
-
-		
-		
-	}
 	
 	
-	PastrLocationStruct getPotentialPastrLocation(double maxDistance, int minImmediate, RobotController rc) {
+	/*PastrLocationStruct getPotentialPastrLocation(double maxDistance, int minImmediate, RobotController rc) {
 		
 		MapLocation[] currentFriendlyPastrLocations = rc.sensePastrLocations(rc.getTeam());
 		MapLocation[] currentEnemyPastrLocations = rc.sensePastrLocations(rc.getTeam().opponent());
@@ -358,7 +293,7 @@ public class HQRobot extends BaseRobot{
 									
 								}
 							}*/
-							
+							/*
 							//check to see if any other pastrs structs have already been saved with this location
 							for (int m = 0; m < 25; m++) {
 								if (currentPastrs[m] != null) {
@@ -383,9 +318,9 @@ public class HQRobot extends BaseRobot{
 		
 		//Remember, if no pastr is found within parameters, null MapLocation is returned
 		return toReturn;
-	}
+	}*/
 	
-	
+	/*
 	public void readyNewPastr(RobotController rc, int currentChannel) throws GameActionException {
 		
 		//first, search through pastr channels to nullify any pastr that already had currentChannel
@@ -446,7 +381,17 @@ public class HQRobot extends BaseRobot{
 		
 		
 		
+	}*/
+	
+	
+	//TODO: add functionatlity, such as cases when there are too many enemies around the destroyed pastr
+	public void dealWithPastrDeath(int channel, int message) throws GameActionException {
+		
+		message = PastrRobot.channelSetPastrStatus(PastrStatus.READY, message);
+		rc.broadcast(channel, message);
+		
 	}
+	
 	
 	public void managePastrs(RobotController rc, int currentTurn) throws GameActionException {
 		
@@ -455,37 +400,36 @@ public class HQRobot extends BaseRobot{
 		//check for first Pastr that is unassigned
 		int currentChannel = pastrComStart;
 		
-		boolean isAtLeastOnePastrReady = false;
-		//here, 13 is hard-coded because there can never be more than 13 pastrs in the game
-		for (int m = 0; m < 13; m++) {
+		//here, 12 is hard-coded because there can never be more than 13 pastrs in the game
+		for (int m = 0; m < 12; m++) {
+			
+
+			
 			
 			int message = rc.readBroadcast(currentChannel);
 			//System.out.println("Checking channel " + currentChannel + " where code is " + Integer.toBinaryString(channelInt));
 			//get code
 			PastrStatus status = PastrRobot.channelGetPastrStatus(message);
 			
+			//make sure currentPastrs array is filled up with pastrs found by first soldier
+			if (currentPastrs[m] == null) {
+				currentPastrs[m] = new PastrLocationStruct();
+				currentPastrs[m].loc = PastrRobot.channelGetLocation(message);
+				
+			}
+			
+			currentPastrs[m].status = status;
+			
 			switch (status) {
 			case UNASSIGNED:
 				
-				if (!isAtLeastOnePastrReady) {
-					
-					//STRATEGY: for now, just open up one pastr spot per iteration, because getting a pastr spot
-					//takes time
-					//setting this to true, so no more UNASSIGNED pastrs will be opened
-					isAtLeastOnePastrReady = true;
-				
-					//System.out.println("found an unassigned pastr at channel " + currentChannel + ", will prep it");
-					
-					readyNewPastr(rc, currentChannel);
-				}
+				//System.out.println("Channel " + currentChannel + " has not been assigned by robot yet.");
 				
 				
 				break;
 			case READY:
 				
-				//if you find a ready pastr, no one has taken it yet, do not open any more pastr spots
-				isAtLeastOnePastrReady = true;
-				//System.out.println("found an assigned pastr, no further action to be taken");
+				//nothing needs to be done
 				
 				break;
 				
@@ -496,7 +440,7 @@ public class HQRobot extends BaseRobot{
 				//calls rc.broadcast().
 				if (isConstructingPastrRobotDead(Clock.getRoundNum(),lastHeartbeat)) {
 					
-					readyNewPastr(rc,currentChannel);
+					dealWithPastrDeath(currentChannel,message);
 					
 				}
 				
@@ -512,16 +456,10 @@ public class HQRobot extends BaseRobot{
 				
 				//if robot hasn't beat his heart in a while, remove him
 				if (isRobotDead(Clock.getRoundNum(),lastTurn)) {
-					for (int n = 0; n < currentPastrs.length; n++) {
-						if (currentPastrs[n] != null) {
-							if (currentPastrs[n].channel == currentChannel) {
-								currentPastrs[n] = null;
-							}
-						}
-					}
+					
 					
 					//TODO: declare it as Doomed?
-					rc.broadcast(currentChannel, 0); //clear the channel, it will be declared UNASSIGNED
+					dealWithPastrDeath(currentChannel,message);
 					
 					
 					
@@ -532,16 +470,6 @@ public class HQRobot extends BaseRobot{
 				
 				
 			}
-			
-
-			
-			
-			
-			
-			
-			
-			
-			
 			currentChannel += 2;
 		}
 		

@@ -23,6 +23,7 @@ public abstract class BaseRobot {
 	//constant variables
 	final public int declareDeadInterval = 15; //interval at which soldier heartbeats
 	final public int pastrComStart = 50001; //broadcast channel where pastr communication starts
+	final public int pastrLocationChannel=50000; //broadcast channel for whether pastrs locations have been calcualated
 	final public int membersPerGroup = 6; //number of soldiers per group, 8 is max
 	final public int firstGroupChannel = 40002; //broadcast channel where group communication starts
 	

@@ -7,11 +7,12 @@ import battlecode.common.*;
 public class PastrLocationStruct {
 	
 	//statistics
-	public int fertilityGrowth;
-	public double averageCowGrowth;
-	public MapLocation loc;
-	public double cowGrowingArea;
-	public double distanceToHQ;
+	public int fertilityGrowth; //areas within the radius that have cows
+	public double averageCowGrowth; //obvious
+	public MapLocation loc; //obvious
+	public double cowGrowingArea; //size of area we checked
+	public double distanceToHQ; //obvious
+	public double score;
 	
 	//properties
 	public boolean hasTooManyEnemies;
