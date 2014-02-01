@@ -93,295 +93,295 @@ public class HQRobot extends BaseRobot{
 		rc.broadcast(0, 1); //flag that the data has been broadcasted
 	}
 	
+	void reTargetDefenderGroup(int[] messages, GroupUnit unit) {
+		
+		MapLocation target = null;
+		
+		int cumX = 0;
+		int cumY = 0;
+		
+		int counter = 0;
+		int firstReadyPastr = 0;
+		boolean foundFirstReadyPastr = false;
+		
+		StringBuilder sb = new StringBuilder();
+		
+		for (int f = 0; f < currentPastrs.length; f++) {
+			
+			if (currentPastrs[f] != null) {
+				PastrStatus status = currentPastrs[f].status;
+
+				sb.append(" " + status + "-" + currentPastrs[f].loc + " ");
+				if (!foundFirstReadyPastr) {
+					if (status == PastrStatus.READY) {
+						foundFirstReadyPastr = true;
+						firstReadyPastr = f;
+						
+					}
+				}
+				if (status != PastrStatus.UNASSIGNED && status != PastrStatus.READY) {
+				cumX += currentPastrs[f].loc.x;
+				cumY += currentPastrs[f].loc.y;
+				counter++;
+
+				}
+			} else {
+				sb.append(" null ");
+			}
+		}
+		
+		rc.setIndicatorString(2, sb.toString());
+		
+		if (counter > 0) {
+			target = new MapLocation(cumX/counter, cumY/counter);
+		} else if (foundFirstReadyPastr) {
+			target = currentPastrs[firstReadyPastr].loc;
+		} else {
+			target = rc.senseHQLocation();
+		}
+		
+
+		
+		
+		if (rc.senseTerrainTile(target) == TerrainTile.VOID) {
+			target = rc.senseHQLocation();
+		}
+		
+		GroupUnit.setCurrentTarget(target, messages, unit);
+		
+	}
+	
+	MapLocation getClosestPastr(MapLocation destroyerLocation) {
+		double closest = 10000;
+		MapLocation toReturn = null;
+		MapLocation[] pastrLocs = rc.sensePastrLocations(rc.getTeam().opponent());
+		
+		for (int n = 0; n < pastrLocs.length; n++) {
+			double distance = calculateDistance(pastrLocs[n],destroyerLocation);
+			if (distance < closest) {
+				closest = distance;
+				toReturn = pastrLocs[n];
+			}
+		}
+		return toReturn;
+	}
+	
 	//GROUPS SECTION: two methods below, manageGroups() and setupNewGroup()
+	//make sure there is at least one DEFENDER group
 	public void manageGroups() throws GameActionException {
 		
 		//System.out.println("Now managing groups...");
+		int currentTurn = Clock.getRoundNum();
 		
 		int maxGroupsToCheck = (25 / membersPerGroup) + 1;
 		
-		int[] messages = new int[2];
+
 		int currentChannel = firstGroupChannel;
-		boolean isAtLeastOneGroupReady = false;
+		boolean isAtLeastOneGroupOpen = false;
 		
 		for (int n = 0; n < maxGroupsToCheck; n++) {
 			
-			messages[0] = rc.readBroadcast(currentChannel);
-			messages[1] = rc.readBroadcast(currentChannel + 1);
+			int[] messages = GroupUnit.readGroupInformation(currentChannel, rc);
 			
-			//System.out.println("HQ is checking group channel " + currentChannel + " and found a message: " + Integer.toBinaryString(messages[0]));
+			if (!isAtLeastOneGroupOpen) {
+				isAtLeastOneGroupOpen = GroupUnit.getIsGroupOpen(messages);
+			}
 			
-			//make sure at least one group is ready to accept members
-			if (!isAtLeastOneGroupReady) {
 			
-				if (!GroupUnit.getIsGroupOpen(messages) ) {
-						isAtLeastOneGroupReady = true;
-						setupNewGroup(rc,currentChannel,messages);
-					
-				} else {
-					if (!GroupUnit.getIsFull(messages)) {
-						isAtLeastOneGroupReady = true;
-					}
+			
+			
+			SoldierMode status = GroupUnit.getGroupRole(messages);
+			
+			switch(status) {
+			case UNASSIGNED:
+				if (!isAtLeastOneGroupOpen) {
+					setupNewGroup(rc,n, currentChannel,messages);
 				}
+				break;
+			case GROUPING:
+				//turn a grouping group into something else if all members have arrived, or if a certain amount of time has passed
+				boolean haveAllMembersArrived = true;
+				if (Clock.getRoundNum() >= (currentUnits[n].turnCreated + 300)) {
+					System.out.println("Assigned role to group because of group creation timeout");
+				}
+				
+				//300 hardcoded, give a group 300 turns to populate
+				if (Clock.getRoundNum() < (currentUnits[n].turnCreated + 300)) {
+				
+					for (int i = 0; i < membersPerGroup; i++) {
+						if(!GroupUnit.getHasArrived(i, messages)){
+							haveAllMembersArrived = false;
+							//System.out.println("Member " + i + " has not arrived yet");
+							break;
+						}
+					}
+					if (haveAllMembersArrived) {
+
+						System.out.println("Assigned role to group because entire group arrived");
+					}
+				
+				}
+				
+				//assign as a DEFENDER or DESTROYER
+				//for now, make sure there are enough DEFENDER soldiers for the given number of pastrs
+				if (haveAllMembersArrived) {
+					int defenders = 0;
+					int destroyers = 0;
+					for (int y = 0; y < currentUnits.length; y++) {
+						if (currentUnits[y] != null) {
+							if (currentUnits[y].groupRole == SoldierMode.DEFENDER) {
+								defenders++;
+							}
+							if (currentUnits[y].groupRole == SoldierMode.DESTROYER) {
+								destroyers++;
+							}
+							
+							
+						}
+						
+					}
+					
+					if (defenders < getLeastNumberGroups((rc.sensePastrLocations(rc.getTeam()).length) * 2) + 5 ) {
+						GroupUnit.setGroupRole(SoldierMode.DEFENDER, messages, currentUnits[n]);
+						//TODO: fix this so it roams around areas that are not being roamed by other DEFENDER groups
+						//basically you're just sending group to roam around area between all pastrs
+						reTargetDefenderGroup(messages, currentUnits[n]);
+						
+					} else {
+						
+						
+						
+						GroupUnit.setGroupRole(SoldierMode.DESTROYER,messages,currentUnits[n]);
+						//TODO: fix this so it doesn't just target the first pastr in the array
+						MapLocation target = getClosestPastr(currentUnits[n].currentTarget);
+						if (target == null)
+							target = rc.senseHQLocation();
+						
+						GroupUnit.setCurrentTarget(target, messages, currentUnits[n]);
+						
+					
+					}
+					
+					GroupUnit.writeGroupInformation(currentChannel, messages, rc);
+				}
+				
+				
+				break;
+			case DEFENDER:
+				//if Defender group is not in a mission, reposition it to where it should be
+				if (!currentUnits[n].inMission) {
+					reTargetDefenderGroup(messages,currentUnits[n]);
+				}
+				
+				GroupUnit.writeGroupInformation(currentChannel, messages, rc);
+				
+				
+				break;
+			case DESTROYER:
+				//TODO: 
+				//check to see if there is an enemy pastr at target location. If not, assign it to the next best enemy pastr.
+				
+				boolean isTargetAnEnemyPastr = false;
+				MapLocation[] enemyPastrs = rc.sensePastrLocations(rc.getTeam().opponent());
+				MapLocation currentTarget = currentUnits[n].currentTarget;
+				double closest = 10000;
+				MapLocation targetToSet = null;
+				//if (currentTarget != null) {
+					
+					for (int i = 0; i < enemyPastrs.length; i++) {
+						double distance = calculateDistance(currentTarget,enemyPastrs[i]);
+						if (distance < closest) {
+							closest = distance;
+							targetToSet = enemyPastrs[i];
+						}
+						
+						
+						if (enemyPastrs[i].equals(currentTarget)  ) {
+							isTargetAnEnemyPastr = true;
+							break;
+						}
+					}
+					
+					
+				//}
+				
+				
+				
+				if (!isTargetAnEnemyPastr) {
+					//MapLocation targetToSet = null;
+					//if (enemyPastrs.length > 0)
+						//targetToSet = enemyPastrs[0];
+					if (targetToSet == null) {
+						targetToSet = rc.senseHQLocation();
+					}
+					
+					
+					rc.setIndicatorString(2, "target to set will be " + targetToSet);
+					//GroupUnit.setCurrentTarget(targetToSet, messages, currentUnits[n]);
+					System.out.println("LOOK HERE!!!!!!!! Target to set is " + targetToSet.x + ", " + targetToSet.y);
+					GroupUnit.setCurrentTarget(targetToSet, messages, currentUnits[n]);
+					GroupUnit.writeGroupInformation(currentChannel, messages, rc);
+				}
+				
+				
+				
+				break;
+				default:
+					System.out.println("Um...group had no recognizable role in HQRobot.manageGroups()");
 			
 			}
 			
-			//TODO: do make sure all members of each group are alive
-			
-			//TODO: do manage groups
+
 			
 			//iterate to next group channel
-			currentChannel += (2 + membersPerGroup);
+			currentChannel += (3 + membersPerGroup);
 		}
 		
 	}
 	
-	//This functions opens up a new group. It returns true if a group was formed, false if it wasn't
-	private boolean setupNewGroup(RobotController rc, int groupChannel, int[] messages) throws GameActionException {
+	//This will set up the new group, assigning it the role of 'GROUPING' with a rally point
+	//it is reponsiblity of 'manageGroups()' to determine what to do with group once it has rallied
+	private boolean setupNewGroup(RobotController rc, int slot, int groupChannel, int[] messages) throws GameActionException {
 
 		
 		GroupUnit newUnit = new GroupUnit(membersPerGroup);
 		newUnit.groupChannel = groupChannel;
+		currentUnits[slot] = newUnit;
 		
-		int maxGroupsToCheck = (25 / membersPerGroup) + 1;
-		
-		//find first empty slot in currentUnits and assign Unit to it
-		for (int n = 0; n < maxGroupsToCheck; n++) {
-			if (currentUnits[n] == null) {
-				currentUnits[n] = newUnit;
-				//System.out.println("setting this new group to be number " + n + " in the currentUnits array.");
-				break;
-			}
-		}
-		
-		
-		//gets data for that group and clear it, in case last owner left anything
 		messages[0] = 0;
 		messages[1] = 0;
+		messages[2] = 0;
 		
-		//STRATEGY: we will iterate through each pastr, as saved variables, to ensure each has at least one defender unit
-		
-		int pass = 1;
-		
-		while(pass < 2) {
-		
-			for (int n = 0; n < currentPastrs.length; n++) {
-				//System.out.println("Assigning mission to group " + groupChannel + ", checking currentPastrs[n] " + n + " at pass " + pass);
-				
-				if (currentPastrs[n] != null) {
-					
-					System.out.println("found a pastr, it has " + currentPastrs[n].getDefenderCount() + " defenders ");
-					
-					//for each pass, try to find a pastr that has less than that amount of defenders
-					if (currentPastrs[n].getDefenderCount() < pass) {
-						
-						//add the unit as the defender
-						currentPastrs[n].addDefender(newUnit);
-						
-						
-						messages = GroupUnit.setGroupRole(SoldierMode.DEFENDER, messages, newUnit);
-						
-						messages = GroupUnit.setCurrentTarget(currentPastrs[n].loc, messages, newUnit);
-						
-						messages = GroupUnit.setIsGroupOpen(messages, true);
-						rc.setIndicatorString(2, "Setting Group " + groupChannel + " to location " + GroupUnit.getCurrentTarget(messages).toString());
-						GroupUnit.writeGroupInformation(groupChannel, messages, rc);
-						
-						
-						return true;
-						
-					}
-				}
-			}
-		
-			pass++;
-		}
-		
-		
-		if (enemyPastr == null) {
-		MapLocation[] locs =	rc.sensePastrLocations(rc.getTeam().opponent());
-		
-		if (locs.length > 0) {
+		//rally robots around first pastr location. If pastr location has not been determined, rally it
+		//around the HQ.
+		int pastrLoc = rc.readBroadcast(pastrComStart);
+		MapLocation loc = PastrRobot.channelGetLocation(pastrLoc);
+		if (loc.x == 0 && loc.y == 0) {
 			
-		//just as a test
-		messages = GroupUnit.setGroupRole(SoldierMode.DESTROYER, messages, newUnit);
-		messages = GroupUnit.setCurrentTarget(locs[0], messages, newUnit);
+			loc = rc.senseHQLocation();
+		}
+		
+		//loc = new MapLocation(31,5);
+		
+		messages = GroupUnit.setGroupRole(SoldierMode.GROUPING, messages, newUnit);
+		System.out.println("Created new group " + GroupUnit.getGroupRole(messages));
+		messages = GroupUnit.setCurrentTarget(loc, messages, newUnit);
 		messages = GroupUnit.setIsGroupOpen(messages, true);
-		rc.broadcast(groupChannel, messages[0]);
-		rc.broadcast(groupChannel + 1, messages[1]);
-		enemyPastr = locs[0];
+		newUnit.turnCreated = Clock.getRoundNum();
+		GroupUnit.writeGroupInformation(groupChannel, messages, rc);
+		
+		
+
+		
+		
+		
 		return true;
-		}
-		} else {
-			messages = GroupUnit.setGroupRole(SoldierMode.DESTROYER, messages, newUnit);
-			messages = GroupUnit.setCurrentTarget(enemyPastr, messages, newUnit);
-			messages = GroupUnit.setIsGroupOpen(messages, true);
-			rc.broadcast(groupChannel, messages[0]);
-			rc.broadcast(groupChannel + 1, messages[1]);
-			return true;
-		}
-		
-		
-		//as code is designed, you really shouldn't get to this point
-		
-		//System.out.println("This should not have happened");
-		
-		
-		
-		return false;
 	}
 	
 
 	
 	
-	/*PastrLocationStruct getPotentialPastrLocation(double maxDistance, int minImmediate, RobotController rc) {
-		
-		MapLocation[] currentFriendlyPastrLocations = rc.sensePastrLocations(rc.getTeam());
-		MapLocation[] currentEnemyPastrLocations = rc.sensePastrLocations(rc.getTeam().opponent());
-		
-		PastrLocationStruct toReturn = null;
-		double maxAverage = 0;
-		
-		for (int n = 0; n < pastrArrayCount; n ++) {
-			
-			//first, make sure location is within parameters
-			if (pastrCandidates[n].distanceToHQ < maxDistance && pastrCandidates[n].fertilityGrowth >= minImmediate  ) {
-				if (pastrCandidates[n].averageCowGrowth > maxAverage) {
-					
-					
-					//Now, check if location is too close to other Pastrs
-					MapLocation potentialLoc = pastrCandidates[n].loc;
-					boolean isTooCloseToAnotherPastr = false;
-					
-					//CONSTANT: setting distance from friendly pastrs at 5
-					for (MapLocation eachLoc: currentFriendlyPastrLocations) {
-						if ( Math.abs(potentialLoc.x - eachLoc.x) < 5 || Math.abs(potentialLoc.y - eachLoc.y) <5   ) {
-							isTooCloseToAnotherPastr = true;
-							break;
-						}
-					}
-					
-					//CONSTANT: setting distance from enemy pastrs at 6
-					for (MapLocation eachLoc: currentEnemyPastrLocations) {
-						if ( Math.abs(potentialLoc.x - eachLoc.x) < 6 || Math.abs(potentialLoc.y - eachLoc.y) < 6   ) {
-							isTooCloseToAnotherPastr = true;
-							break;
-						}
-					}
-					
-						
-						if (!isTooCloseToAnotherPastr) {
-							
-							boolean alreadyBeingSettled = false;
-							
-							//check to see if any other SETTLER groups are already on their way
-							/*for (int m = 0; m < 16; m++) {
-								//System.out.println("checking to see if index space " + m + " is on its way to settle current spot");
-								if (currentUnits[m] != null) {
-									if (currentUnits[m].groupRole == SoldierMode.SETTLER) {
-										//System.out.println("found that group " + m + " was on its way to settle something");
-										if (currentUnits[m].currentTarget == null) {
-											//System.out.println("What happened? why does a team with SETTLER have no target?");
-										}
-										else {
-										if (calculateDistance(currentUnits[m].currentTarget,pastrCandidates[n].loc ) < 10  ) {
-											alreadyBeingSettled = true;
-											break;
-										}
-										}
-									}
-									
-								}
-							}*/
-							/*
-							//check to see if any other pastrs structs have already been saved with this location
-							for (int m = 0; m < 25; m++) {
-								if (currentPastrs[m] != null) {
-									if (calculateDistance(currentPastrs[m].loc,pastrCandidates[n].loc  ) < 10) {
-										alreadyBeingSettled = true;
-										break;
-									}
-								}
-							}
-							
-							if (!alreadyBeingSettled) {
-								toReturn = pastrCandidates[n];
-								maxAverage = pastrCandidates[n].averageCowGrowth;
-							}
-						
-						
-						}
-				}
-			}
-			
-		}
-		
-		//Remember, if no pastr is found within parameters, null MapLocation is returned
-		return toReturn;
-	}*/
-	
-	/*
-	public void readyNewPastr(RobotController rc, int currentChannel) throws GameActionException {
-		
-		//first, search through pastr channels to nullify any pastr that already had currentChannel
-		//it is the reponsiblity of the calling function to make sure that if a pastr already had currentChannel, it
-		//is actually dead!
-		int arrayIndexToReplace = -1;
-		
-		for (int n = 0; n < currentPastrs.length; n++) {
-			if (currentPastrs[n] != null && currentPastrs[n].channel == currentChannel) {
-				currentPastrs[n] = null;
-				arrayIndexToReplace = n;
-				break;
-			}
-		}
-		
-		
-		int message = 0;
-		
-		
-		//get target
-		PastrLocationStruct target = getPotentialPastrLocation(20,20,rc);
-		if (target == null)
-			target = getPotentialPastrLocation(40,15,rc);
-		if (target==null)
-			target = getPotentialPastrLocation(120,0,rc);
-		//TODO: think about what happens if you can't get any more pastr locations
-		if (target == null) {
-			target = new PastrLocationStruct();
-			target.loc = new MapLocation (0,0);
-					System.out.println("!!!!!!!!WARNING: could not find pastr location!");
-		}
-			
-		
-		//set target
-		message = PastrRobot.channelSetLocation(target.loc, message);
-		
-		//set status
-		message = PastrRobot.channelSetPastrStatus(PastrStatus.READY, message);
-		target.status = PastrStatus.READY;
-		target.channel = currentChannel;
-		
-		rc.broadcast(currentChannel, message); //broadcast
-		
-		if (arrayIndexToReplace == -1) {
-			
-			//if you're not replacing anything, find the first available slot
-			for (int n = 0; n < 25; n++) {
-				if (currentPastrs[n] == null) {
-					currentPastrs[n] = target;
-					break;
-				}
-			}
-			
-			
-		} else {
-			currentPastrs[arrayIndexToReplace] = target;
-		}
-		
-		
-		
-	}*/
+
 	
 	
 	//TODO: add functionatlity, such as cases when there are too many enemies around the destroyed pastr
@@ -413,12 +413,14 @@ public class HQRobot extends BaseRobot{
 			
 			//make sure currentPastrs array is filled up with pastrs found by first soldier
 			if (currentPastrs[m] == null) {
+				if (status != PastrStatus.UNASSIGNED) {
 				currentPastrs[m] = new PastrLocationStruct();
 				currentPastrs[m].loc = PastrRobot.channelGetLocation(message);
-				
+				System.out.println("setting location of null pastr: " + PastrRobot.channelGetLocation(message) + " at channel " + currentChannel);
+				currentPastrs[m].status = status;
+				}
 			}
 			
-			currentPastrs[m].status = status;
 			
 			switch (status) {
 			case UNASSIGNED:
@@ -446,24 +448,73 @@ public class HQRobot extends BaseRobot{
 				
 				
 				break;
-			case SETTLING:
-			case HEALTHY:
 			case ATTACKED:
 			case EMERGENCY:
-			case DOOMED:
-
-				int lastTurn = PastrRobot.channelGetTurn(message);
 				
-				//if robot hasn't beat his heart in a while, remove him
+				//TODO: HQ is not fast enough for this, implement this behavior in each group
+				//System.out.println("Identified Pastr in state of emergency!!! in channel " + currentChannel + " message is " + Integer.toBinaryString(message));
+				//declare pastr dead if there has been no recent heartbeat
+				int lastTurn = PastrRobot.channelGetTurn(message);
 				if (isRobotDead(Clock.getRoundNum(),lastTurn)) {
-					
-					
-					//TODO: declare it as Doomed?
 					dealWithPastrDeath(currentChannel,message);
+				}
+				
+				
+				//if pastr is under attack, get a defense unit to aid it
+				if (currentPastrs[m].getDefenderCount() < 0) {
 					
+					for (int n = 0; n < currentUnits.length; n++) {
+						if (currentUnits[n] != null) {
+							if (currentUnits[n].groupRole == SoldierMode.DEFENDER) {
+								//only if it's a assign a group to aid if the group was doing nothing
+								if (currentUnits[n].inMission == false) {
+									
+									int[] messages = GroupUnit.readGroupInformation(currentUnits[n].groupChannel, rc);
+									GroupUnit.setCurrentTarget(currentPastrs[m].loc, messages, currentUnits[n]);
+									GroupUnit.writeGroupInformation(currentUnits[n].groupChannel, messages, rc);
+									
+									currentUnits[n].inMission = true;
+									currentPastrs[m].addDefender(currentUnits[n]);
+									break;
+								}
+							}
+						}
+					}
 					
 					
 				}
+				
+				
+				break;
+			case SETTLING:
+			case HEALTHY:
+				//declare pastr dead if there has been no recent heartbeat
+				int lastTurnHealthy = PastrRobot.channelGetTurn(message);
+				if (isRobotDead(Clock.getRoundNum(),lastTurnHealthy)) {
+					dealWithPastrDeath(currentChannel,message);
+				}
+				
+				//if pastr is no longer in danger, free its defender group
+				if (currentPastrs[m].getDefenderCount() > 0) {
+					for (int n = 0; n < currentPastrs[m].defenderUnits.length; n++) {
+						if (currentPastrs[m].defenderUnits[n] != null) {
+							
+							//release each unit
+							GroupUnit eachUnit = currentPastrs[m].defenderUnits[n];
+							int[] messages = GroupUnit.readGroupInformation(eachUnit.groupChannel, rc);
+							GroupUnit.clearTargetingInformation(rc, messages, eachUnit);
+							eachUnit.inMission = false;
+							reTargetDefenderGroup(messages,eachUnit);
+							GroupUnit.writeGroupInformation(eachUnit.groupChannel, messages, rc);
+							
+							//declare that the unit is no longer defending the pastr
+							currentPastrs[m].defenderUnits[n] = null;
+
+						}
+					}
+					
+				}
+				
 				
 				
 				break;

@@ -20,7 +20,7 @@ public class PastrLocationStruct {
 	public PastrStatus status = PastrStatus.UNASSIGNED;
 	public int channel;
 	
-	private GroupUnit[] defenderUnits = new GroupUnit[16];
+	public GroupUnit[] defenderUnits = new GroupUnit[16];
 	
 	
 	public boolean addDefender(GroupUnit unit) {

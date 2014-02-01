@@ -40,6 +40,7 @@ public class GroupUnit {
 	public boolean isFull = false;
 	public MapLocation currentTarget;
 	public int groupCount;
+	public boolean inMission = false;
 	
 	//the two channels
 	//public int destroyerMessage1;
@@ -48,19 +49,23 @@ public class GroupUnit {
 	
 	public SoldierMode groupRole = SoldierMode.UNASSIGNED;
 	public int groupChannel = 0;
+	public int turnCreated = 0;
+	//public PastrL
 	
 	
 	//this should be used to read and write group broadcast information, since it's a bit of an involved process
 	public static int[] readGroupInformation(int channel, RobotController rc) throws GameActionException {
-		int[] toReturn = new int[2];
+		int[] toReturn = new int[3];
 		toReturn[0] = rc.readBroadcast(channel);
 		toReturn[1] = rc.readBroadcast(channel + 1);
+		toReturn[2] = rc.readBroadcast(channel + 2); 
 		return toReturn;
 	}
 	
 	public static void writeGroupInformation(int channel, int[] message, RobotController rc) throws GameActionException {
 		rc.broadcast(channel, message[0]);
 		rc.broadcast(channel + 1, message[1]);
+		rc.broadcast(channel + 2, message[2]);
 	}
 	
 
@@ -94,8 +99,29 @@ public class GroupUnit {
 	}
 	
 	
-	//destroyer message 1 -> 1st bit: NULL, 2nd bit: isGroupClosed, bits 3-16: Group Target Location, bits 17-21: groupCount, bit 22: doesGroupHaveLocation, bit 23: isSpaceAvailable;
-	//destroyer message 2 -> bit 1: NULL, bit 2 to 4: robotMode, bit 5 to 8: roleMode, bits 9 to 16: flags whether each member has arrived at location, bits 17 to 24, flags whether each slot is taken
+	//destroyer message 0 -> 1st bit: NULL, 2nd bit: isGroupClosed, bits 3-16: Group Target Location, bits 17-21: groupCount, bit 22: doesGroupHaveLocation, bit 23: isSpaceAvailable;
+	//destroyer message 1 -> bit 1: NULL, bit 2 to 4: robotMode, bit 5 to 8: averageNumberEnemies, bits 9 to 16: flags whether each member has arrived at location, bits 17 to 24, flags whether each slot is taken,
+	//destroyer message 2 -> bits 1 to 16: retreat target, bits 17 to 32: average enemy size
+	
+
+	/*public static int getEnemyAverage(int[] messages) {
+		int averageEnemySize = messages[2] & 0b00000000000000001111111111111111;
+		return averageEnemySize;
+	}
+	
+	public static int[] setEnemyAverage(int[] messages, int enemyCount, GroupUnit group) {
+		
+		double previousAverage = (double)getEnemyAverage(messages);
+		double leftover = previousAverage * (group.groupCount-1/group.groupCount);
+		int newTotal = (int)(enemyCount + leftover);
+		if (newTotal > 65535) System.out.println("Overflow in setEnemyAverage");
+		messages[2] = messages[2] & 0b11111111111111110000000000000000; //clear out previous number
+		messages[2] = messages[2] | newTotal;
+		return messages;
+	}*/
+	
+	
+	
 	public static boolean getIsFull(int[] messages) {
 		int code = messages[0] & 512;
 		return (code != 0);
@@ -123,6 +149,8 @@ public class GroupUnit {
 		switch(code) {
 			case 0:
 			return SoldierMode.UNASSIGNED;
+			case 1:
+				return SoldierMode.GROUPING;
 			case 2:
 				return SoldierMode.DEFENDER;
 			case 3:
@@ -148,6 +176,9 @@ public class GroupUnit {
 		case UNASSIGNED:
 			codeToSet = 0;
 			break;
+		case GROUPING:
+			codeToSet = 1;
+			break;
 		case DEFENDER:
 			codeToSet = 2;
 			break;
@@ -157,7 +188,7 @@ public class GroupUnit {
 			default:
 				codeToSet = 0;
 		}
-		
+		//System.out.println("Deep inside setGroupRole() , role is " + mode + " and code was " + codeToSet);
 		messages[1] = (messages[1] | (codeToSet << 28)); //set new value
 		
 		return messages;
@@ -167,11 +198,12 @@ public class GroupUnit {
 	
 
 	
-	public static int[] clearTargetingInformation(RobotController rc, int[] messages) throws GameActionException {
+	public static int[] clearTargetingInformation(RobotController rc, int[] messages, GroupUnit unit) throws GameActionException {
 		messages[0] = messages[0] & haveLocationEraser; //set hasLocation flag to 0 (no)
 		messages[0] = messages[0] & locationMaskEraser; // erase previous location
 		
 		messages[1] = messages[1] & arrivedFlagEraser; //wipe out all arrived flags
+		unit.currentTarget = null;
 		
 		return messages;
 	}
@@ -217,7 +249,10 @@ public class GroupUnit {
 	}
 	
 	public static int[] setSlotTaken(int slot, int[] messages) {
+		System.out.print("In setSlotTaken() before modifying message it was ," + Integer.toBinaryString(messages[1]));
 		messages[1] = messages[1] | (32768 >> (slot) );
+
+		System.out.print("In setSlotTaken() after modifying message it was ," + Integer.toBinaryString(messages[1]));
 		return messages;
 	}
 	
@@ -228,12 +263,15 @@ public class GroupUnit {
 	
 	
 	
-	public static int[] removeRobot(int slot, int[] messages, GroupUnit unit) {
+	public static int[] removeRobot(int slot, int[] messages, GroupUnit unit, RobotController rc) throws GameActionException {
 		
 		
 		setSlotEmpty(slot, messages);
 		setGroupCount(getGroupCount(messages) - 1, unit, messages);
 		setIsFull(messages,unit, false);
+		
+		//broadcast a heartbeat of 0 for that robot
+		broadcastHeartbeat(slot,unit, rc,0);
 		
 		return messages;
 		
@@ -242,19 +280,30 @@ public class GroupUnit {
 	}
 	
 
+	public static void broadcastHeartbeat(int slot, GroupUnit group, RobotController rc, int heartbeat) throws GameActionException {
+		rc.broadcast(group.groupChannel + 3 + slot, heartbeat);
+	}
 	
+	public static int getHeartbeat(int slot, GroupUnit group, RobotController rc) throws GameActionException {
+		return rc.readBroadcast(group.groupChannel + 3 + slot);
+	}
 
 	
 	public static boolean isSlotTaken(int slot, int[] messages) {
-		if ( (messages[1] & (32768 >> (slot) )  ) == 0)
+		if ( (messages[1] & (32768 >> (slot) )  ) == 0) {
+			//System.out.println("Returning false for whether slot " + slot +  " is taken for message " + Integer.toBinaryString(messages[1]));
 			return false;
-		else return true;
+		}
+		else  {
+			//System.out.println("Returning true for whether slot " + slot +  " is taken for message " + Integer.toBinaryString(messages[1]));
+			return true;
+			}
 	}
 	
 
 	
 	//returns numberInGroup, which starts at 0, will return -1 if there is actually no space
-	public static int[] addRobotToGroupTakesThreeArray(int[] messages, GroupUnit unit, RobotController rc) throws GameActionException {
+	public static int addRobotToGroup(int[] messages, GroupUnit unit, RobotController rc) throws GameActionException {
 		
 		int currentRobotCount = GroupUnit.getGroupCount(messages);
 		
@@ -265,18 +314,15 @@ public class GroupUnit {
 		//if this is the case, group should have been closed
 		if (currentRobotCount >= unit.membersPerGroup) {
 			GroupUnit.setIsFull(messages, unit, true);
-			int[] toReturn = new int[3];
-			toReturn[0] = messages[0];
-			toReturn[1] = messages[1];
-			toReturn[2] = -1;
-			return toReturn;
+
+			return -1;
 			
 		} else {
 			currentRobotCount++;
 			//update group count
 			GroupUnit.setGroupCount(currentRobotCount, unit, messages);
 			
-			//System.out.println("at line 365, new group count is " + getGroupCount());
+			//System.out.println("at line 365, new group count is " + currentRobotCount);
 			
 			//close group if full
 			if (currentRobotCount >= unit.membersPerGroup) {
@@ -296,17 +342,15 @@ public class GroupUnit {
 				}
 			}
 			
+			//System.out.println("Now look here!!! slot returned is " + firstSlot);
+			
 			//System.out.println("first empty slot is" + firstSlot);
 			setSlotTaken(firstSlot, messages);
 			
-			GroupUnit.setSlotTaken(firstSlot, messages);
 			
-			int[] toReturn = new int[3];
-			toReturn[0] = messages[0];
-			toReturn[1] = messages[1];
-			toReturn[2] = firstSlot;
+
 			
-			return toReturn;
+			return firstSlot;
 			
 			
 			

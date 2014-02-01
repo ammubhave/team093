@@ -57,12 +57,14 @@ public class PastrRobot extends BaseRobot {
 		case 2:
 			return PastrStatus.SETTLING;
 		case 3:
-			return PastrStatus.HEALTHY;
+			return PastrStatus.BUILDING;
 		case 4:
-			return PastrStatus.ATTACKED;
+			return PastrStatus.HEALTHY;
 		case 5:
-			return PastrStatus.EMERGENCY;
+			return PastrStatus.ATTACKED;
 		case 6:
+			return PastrStatus.EMERGENCY;
+		case 7:
 			return PastrStatus.DOOMED;
 			default:
 				return PastrStatus.INVALID;
@@ -88,10 +90,20 @@ public class PastrRobot extends BaseRobot {
 	int pastrChannel = -1;
 	int lastHeartbeatTurn = 0;
 	
+	double[] healthHistory = new double[20];
+	PastrStatus lastStatus = PastrStatus.HEALTHY;
+	
 	public PastrRobot(RobotController rc) throws GameActionException {
 		super(rc);
 		
 		int currentChannel = pastrComStart;
+		System.out.println("Upon creation, Pastr health is " + rc.getHealth());
+		
+		//fill out initial healthHistory
+		for (int n = 0; n < healthHistory.length; n++) {
+			healthHistory[n] = 200;
+			
+		}
 		
 		//find your channel
 		for (int n = 0; n < 13; n++) {
@@ -113,11 +125,22 @@ public class PastrRobot extends BaseRobot {
 		
 	}
 	
-	void theBeatOfMyHeart() throws GameActionException {
+	void theBeatOfMyHeart(PastrStatus status) throws GameActionException {
+		
+				int message = 0; //may not be used if neither if condition evaluates to true
+				boolean mustBroadcast = false;
+				
+				if (status != lastStatus) {
+					lastStatus = status;
+					message = rc.readBroadcast(pastrChannel);
+					PastrRobot.channelSetPastrStatus(status, message);
+					mustBroadcast = true;
+				}
+		
 				//constant heartbeat + make sure noise tower is still around
 				if ((Clock.getRoundNum() - lastHeartbeatTurn) > declareDeadInterval ) {
 					lastHeartbeatTurn = Clock.getRoundNum();
-					int message = rc.readBroadcast(pastrChannel);
+					if (message == 0) message = rc.readBroadcast(pastrChannel);
 					message = PastrRobot.channelSetTurn(Clock.getRoundNum(), message);
 					
 					if (PastrRobot.channelGetIsThereNoiseTower(message)) {
@@ -138,15 +161,56 @@ public class PastrRobot extends BaseRobot {
 					}
 					
 					
-					rc.broadcast(pastrChannel, message);
+					
 				}
+				
+				if (mustBroadcast)
+					rc.broadcast(pastrChannel, message);;
 	}
 	
 	@Override
 	public void run() throws GameActionException {
 		
-		//send out constant heartbeat AND checks to make sure NoiseTower is still around
-		theBeatOfMyHeart();
+		double max = 0;
+		
+		//update health history
+		for (int n = 0; n < (healthHistory.length -1); n++) {
+			
+			
+			
+			healthHistory[n] = healthHistory[n+1];
+			if (healthHistory[n] > max) max = healthHistory[n];
+		}
+		healthHistory[healthHistory.length-1] = rc.getHealth();
+		
+		//default pastr status is healthy
+		PastrStatus status = PastrStatus.HEALTHY;
+		
+		//if you've been taking damage, update pastr status
+		//if you've lost a lot in the last 20 turns ,declare emergency
+		if (healthHistory[healthHistory.length-1] < (max - 40)    ) {
+			status = PastrStatus.EMERGENCY;
+		//if not, at least if you've been just attacked, declare attack	
+		} else if (healthHistory[healthHistory.length-1] < max) {
+			status = PastrStatus.ATTACKED;
+		}
+		//otherwise, you haven't been attacked in last 20 turns. Good for you!
+		
+		
+		//System.out.println("Max is " + max + " and current health is " + healthHistory[healthHistory.length-1] + ", so status is " + status);
+		//System.out.println("Five turns ago, health was " + healthHistory[15]);
+		
+		
+		/*This function:
+		 * 1. beats heart
+		 * 2. checks to see if Noise Tower has beat heart
+		 * 3. checks to see if it is necessary to update pastr status
+		 * 
+		 * */
+		
+		theBeatOfMyHeart(status);
+		
+
 		
 		
 		

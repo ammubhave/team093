@@ -24,7 +24,7 @@ public abstract class BaseRobot {
 	final public int declareDeadInterval = 15; //interval at which soldier heartbeats
 	final public int pastrComStart = 50001; //broadcast channel where pastr communication starts
 	final public int pastrLocationChannel=50000; //broadcast channel for whether pastrs locations have been calcualated
-	final public int membersPerGroup = 6; //number of soldiers per group, 8 is max
+	final public int membersPerGroup = 4; //number of soldiers per group, 8 is max
 	final public int firstGroupChannel = 40002; //broadcast channel where group communication starts
 	
 	public static RobotController rc;
@@ -58,7 +58,15 @@ public abstract class BaseRobot {
 		return new MapLocation(i/100,i%100);
 	}
 	
-	
+	public int getLeastNumberGroups(int soldierQuantity) {
+		if (soldierQuantity < membersPerGroup) {
+			return 1;
+		} else {
+			return (soldierQuantity/membersPerGroup);
+		}
+
+			
+	}
 	
 	//Improved method that accuratly detects number of robots on field
 	int senseActualRobotCount(RobotController rc, Robot[] alliedRobots) throws GameActionException {

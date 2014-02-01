@@ -21,7 +21,7 @@ import battlecode.common.RobotInfo;
 import battlecode.common.RobotType;
 import battlecode.common.TerrainTile;
 
-enum SoldierMode {UNASSIGNED, DEFENDER, DESTROYER, SOLO_SETTLER, SOLO_NOISING, NEED_ROLE, ANY};
+enum SoldierMode {UNASSIGNED, GROUPING, DEFENDER, DESTROYER, SOLO_SETTLER, SOLO_NOISING, NEED_ROLE, ANY};
 
 public class SoldierRobot extends BaseRobot{
 	
@@ -32,7 +32,7 @@ public class SoldierRobot extends BaseRobot{
 	int mapWidth;
 	int mapHeight;
 	double maxAverageCowGrowth = 0;
-	final int pastrSearchRadius = 8;
+	final int pastrSearchRadius = 4;
 	PastrLocationStruct[] bestPastrLocations = new PastrLocationStruct[12];
 	
 	
@@ -54,7 +54,7 @@ public class SoldierRobot extends BaseRobot{
 	int lastHeartbeat = 0;
 	
 	int lastGroupParameterCheck = 0;
-	final int groupParameterTurnCheck = 80;
+	final int groupParameterTurnCheck = 5;
 	int currentTurn = 0;
 	
 	int moveCount = 0; //legacy variable, for debugging purposes
@@ -218,15 +218,17 @@ public class SoldierRobot extends BaseRobot{
 		
 		//broadcast everything
 		for (int n = 0; n < bestPastrLocations.length; n++) {
-			int message = 0;
-			if (bestPastrLocations[n] == null)
-				System.out.println("At index " + n + ", the pastr is null");
-			else
-				System.out.println("At index " + n + ", the pastr is not null and the location is " + bestPastrLocations[n].loc);
-			message = PastrRobot.channelSetLocation(bestPastrLocations[n].loc, message);
-			message = PastrRobot.channelSetPastrStatus(PastrStatus.READY, message);
-			rc.broadcast(pastrComStart + (n*2), message);
 			
+			if (bestPastrLocations[n] != null) {
+				int message = 0;
+				if (bestPastrLocations[n] == null)
+					System.out.println("At index " + n + ", the pastr is null");
+				else
+					System.out.println("At index " + n + ", the pastr is not null and the location is " + bestPastrLocations[n].loc);
+				message = PastrRobot.channelSetLocation(bestPastrLocations[n].loc, message);
+				message = PastrRobot.channelSetPastrStatus(PastrStatus.READY, message);
+				rc.broadcast(pastrComStart + (n*2), message);
+			}
 			
 		}
 		
@@ -259,11 +261,11 @@ public class SoldierRobot extends BaseRobot{
 		/*examples: distance between HQ is 120, so 150-120
 		 * */
 		//how many pastrs we then want to buid
-		int initialPastrs = 2 + ( (int) (HQdistance)/40); 
+		int initialPastrs = 1 + ( (int) (HQdistance)/40); 
 		
 		//how many robots per pastr we then want to exist
 		//TODO: review this
-		int soldiersPerPastr = membersPerGroup;
+		int soldiersPerPastr = getLeastNumberGroups(membersPerGroup);
 		
 		//report:
 		if (soldierModeAlgorithmBool == false) {
@@ -387,15 +389,14 @@ public class SoldierRobot extends BaseRobot{
 		//This searches for each open group, then checks to see if there's space available
 		int maxGroupsToCheck = (25 / membersPerGroup) + 1;
 		
-		int[] messages = new int[2];
+
 		int currentChannel = firstGroupChannel;
 		
 		//System.out.println("In join a group function, maxGroupsToCheck is " + maxGroupsToCheck);
 		
 		for (int n = 0; n < maxGroupsToCheck; n++) {
-			messages[0] = rc.readBroadcast(currentChannel);
-			messages[1] = rc.readBroadcast(currentChannel + 1);
-			
+			int[] messages = GroupUnit.readGroupInformation(currentChannel, rc);
+
 			//System.out.println("Checking channel " + currentChannel + "...");
 			
 			if (GroupUnit.getIsGroupOpen(messages)) {
@@ -404,45 +405,36 @@ public class SoldierRobot extends BaseRobot{
 				
 				if (!GroupUnit.getIsFull(messages)) {
 					
-					System.out.println("found group with space available...");
 					
 					group = new GroupUnit(membersPerGroup);
 					group.groupChannel = currentChannel;
-					
-					int[] groupAssignmentNumbers = GroupUnit.addRobotToGroupTakesThreeArray(messages, group, rc);
-					messages[0] = groupAssignmentNumbers[0];
-					messages[1] = groupAssignmentNumbers[1];
-					orderInGroup = groupAssignmentNumbers[2];
-					
-					if (groupAssignmentNumbers[2] == -1) System.out.println("addRobotToGroup() reported group was already closed! this is gonna mess everything up!!!!!!!!!!!!");
+					orderInGroup = GroupUnit.addRobotToGroup(messages, group, rc);
+					//System.out.println("\nLOOK HERE!!! Number given to robot was " + orderInGroup + " and message became " + Integer.toBinaryString(messages[1]));
+					if (orderInGroup == -1) System.out.println("addRobotToGroup() reported group was already closed! this is gonna mess everything up!!!!!!!!!!!!");
 					
 					isMemberOfGroup = true;
 					
-					
-					
 					//start initial heartbeat
-					rc.broadcast(currentChannel + 2 + orderInGroup, Clock.getRoundNum());
+					GroupUnit.broadcastHeartbeat(orderInGroup, group, rc, Clock.getRoundNum());
 					
 
-					System.out.println("Reading group " + group.groupChannel + " and getting binary of " + Integer.toBinaryString(messages[0])     );
-					
+					//System.out.println("Reading group " + group.groupChannel + " and getting binary of " + Integer.toBinaryString(messages[0])     );
+					GroupUnit.writeGroupInformation(group.groupChannel, messages, rc);
 					updateGroupInformation(group, messages);
-					if (path1 == null) {
-						System.out.println("path1 is null!");
-					}
-					System.out.println("Before broadcast");
-					rc.broadcast(currentChannel, messages[0]);
-					rc.broadcast(currentChannel + 1, messages[1]);
+					
+					//System.out.println("\n now again LOOK HERE!!! Number given to robot was " + orderInGroup + " and message became " + Integer.toBinaryString(messages[1]));
 					
 					
-					System.out.println("Is member " + orderInGroup + " of group " + group.groupChannel);
+					
+					
+					//rc.setIndicatorString(2, "Is member " + orderInGroup + " of group " + group.groupChannel);
 					
 					return true;
 					
 				}
 			}
 			
-			currentChannel += (2 + membersPerGroup);
+			currentChannel += (3 + membersPerGroup);
 		}
 			
 			
@@ -457,17 +449,13 @@ public class SoldierRobot extends BaseRobot{
 	
 	private void leaveCurrentGroup(RobotController rc) throws GameActionException {
 		
-		int[] messages = new int[2];
-		
-		messages[0] = rc.readBroadcast(group.groupChannel);
-		messages[1] = rc.readBroadcast(group.groupChannel + 1);
+		int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);
 		
 		
 		isMemberOfGroup = false;
-		GroupUnit.removeRobot(orderInGroup, messages, group);
+		GroupUnit.removeRobot(orderInGroup, messages, group, rc);
 		
-		rc.broadcast(group.groupChannel, messages[0]);
-		rc.broadcast(group.groupChannel, messages[1]);
+		GroupUnit.writeGroupInformation(group.groupChannel, messages, rc);
 		group = null;
 		
 		
@@ -478,15 +466,16 @@ public class SoldierRobot extends BaseRobot{
 	private void updateGroupInformation(GroupUnit newUnit, int[] messages) {
 		
 		currentRole = GroupUnit.getGroupRole(messages); 
-		
+		//System.out.println("Inside updateGroupInformation(), current Role is " + currentRole);
 		//find out group's destination
 		MapLocation newTarget = GroupUnit.getCurrentTarget(messages);
-		if (newTarget != null && !newTarget.equals(destination)) {
-			
+		if (newTarget != null && !newTarget.equals(destination) && !newTarget.equals(roamingSite) ) {
+			rc.setIndicatorString(2, "New target acquired: " + newTarget + "now finding path...");
 			destination = newTarget;
 			//System.out.println("got target");
 			//rc.setIndicatorString(0, "Is part of group, now searching for path from " + rc.getLocation() + " to " + destination);
 			setPath(rc.getLocation(),destination);
+			rc.setIndicatorString(2, "found path.");
 			//System.out.println("move list is " + ls.length + " long");
 		} else {
 			//System.out.println("didnt get target ");
@@ -496,13 +485,13 @@ public class SoldierRobot extends BaseRobot{
 	
 	private void announceArrivalAtGroupSite(RobotController rc) throws GameActionException {
 		
-		int[] messages = new int[2];
+		int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);
 		
-		messages[0] = rc.readBroadcast(group.groupChannel);
-		messages[1] = rc.readBroadcast(group.groupChannel + 1);
-		
+	
 		messages = GroupUnit.setHasArrived(orderInGroup, true, messages);
-
+		System.out.println("Robot " + orderInGroup + " is announcing that it has arrived");
+		GroupUnit.writeGroupInformation(group.groupChannel, messages, rc);
+		
 		roamingSite = destination;
 		destination = null;
 		
@@ -510,10 +499,12 @@ public class SoldierRobot extends BaseRobot{
 		System.out.println("robot has arrived at location.");
 		//System.out.println("after robot# " + orderInGroup + " added his arrival, message 2 is " + Integer.toBinaryString(group.destroyerMessage2));
 		
-		if (GroupUnit.hasEntireGroupArrived(messages, group)) {
+		
+		//for now HQ will take care of determinig when a group is ready to be reassigned
+		/*if (GroupUnit.hasEntireGroupArrived(messages, group)) {
 			System.out.println("Entire group has arrived at location.");
-			GroupUnit.clearTargetingInformation(rc, messages);
-		}
+			GroupUnit.clearTargetingInformation(rc, messages, group);
+		}*/
 		
 		
 	}
@@ -587,7 +578,7 @@ public class SoldierRobot extends BaseRobot{
 		
 		//setup destination and path
 		destination = PastrRobot.channelGetLocation(message);
-		rc.setIndicatorString(1, "getting path to " + destination.toString());
+		rc.setIndicatorString(2, "getting path to " + destination.toString());
 		setPath(rc.getLocation(),destination);
 		
 		
@@ -604,7 +595,6 @@ public class SoldierRobot extends BaseRobot{
 	
 	private boolean isMapReady() throws GameActionException {
 		int message = rc.readBroadcast(0);
-		rc.setIndicatorString(2, "" + message);
 		
 		if(rc.readBroadcast(0)==1){
 			return true;
@@ -803,7 +793,39 @@ public class SoldierRobot extends BaseRobot{
 			lastHeartbeat = currentTurn;
 			
 			if (isMemberOfGroup) {
-				rc.broadcast(group.groupChannel + 2 + orderInGroup, Clock.getRoundNum());
+				GroupUnit.broadcastHeartbeat(orderInGroup, group, rc, currentTurn);
+				
+				//check to make sure group memebers are still alive until front of group
+				int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);
+				
+				//check members going backwards
+				for (int n = orderInGroup - 1; n >= 0; n--) {
+					int heartbeatMessage = GroupUnit.getHeartbeat(n, group, rc);
+					if (heartbeatMessage != 0) {
+						if (!isRobotDead(currentTurn,heartbeatMessage)) {
+							break;
+						} else {
+							GroupUnit.removeRobot(n, messages, group, rc);
+						}
+					}
+					
+				}
+				
+				//now check going forwards
+				for (int n = orderInGroup + 1; n < membersPerGroup; n++) {
+					int heartbeatMessage = GroupUnit.getHeartbeat(n, group, rc);
+					if (heartbeatMessage != 0) {
+						if (!isRobotDead(currentTurn,heartbeatMessage)) {
+							break;
+						} else {
+							GroupUnit.removeRobot(n, messages, group, rc);
+						}
+					}
+					
+				}
+				
+				GroupUnit.writeGroupInformation(group.groupChannel, messages, rc);
+				
 			}
 			else {
 				if (currentRole == SoldierMode.SOLO_SETTLER) {
@@ -889,8 +911,8 @@ public class SoldierRobot extends BaseRobot{
 	}
 	
 	
+	// AMOL'S PATH-FINDING!!!!!!!!!! This method and next.
 	/*
-	 * AMOL'S PATH-FINDING!!!!!!!!!! This method and next.
 	private boolean setPath(MapLocation start, MapLocation end) {
 		
 		destination = end;
@@ -927,74 +949,16 @@ public class SoldierRobot extends BaseRobot{
 	public void run() throws GameActionException {
 		//if the map is ready download it
 		nearbyEnemies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam().opponent());
-		nearbyAllies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam());
+		//nearbyAllies = rc.senseNearbyGameObjects(Robot.class,10,rc.getTeam());
 		//Decide whether to attack or commit suicide
 		
 
-		
-		
-		
-		if (nearbyEnemies.length > 0) {
-			
-			if (rc.isActive()) {
-						
-						MapLocation currentLoc = rc.getLocation();
-						double lowestHealth = 1000;
-						MapLocation targetLocation = null; //I'm pretty sure that the below loop guarantees this will never be null
-						int adjacentEnemies = 0;
-						int adjacentAllies = 0;
-						
-						
-						//search for enemy with lowest health, and determine how many enemies are next to you
-						for (int n = 0; n < nearbyEnemies.length; n++) {
-							
-							RobotInfo info = rc.senseRobotInfo(nearbyEnemies[n]);
-							
-							if ( info.health < lowestHealth  ) {
-								lowestHealth = info.health;
-								targetLocation = info.location;
-							}
-							
-							if ( Math.abs(info.location.x - currentLoc.x) <= 1 && Math.abs(info.location.y - currentLoc.y) <= 1 ) {
-								adjacentEnemies++;
-							}
-							
-						}
-						
-						//determines how many allies are next to you
-						for (int n = 0; n < nearbyAllies.length; n++) {
-							
-							RobotInfo info = rc.senseRobotInfo(nearbyAllies[n]);
-							if ( Math.abs(info.location.x - currentLoc.x) <= 1 && Math.abs(info.location.y - currentLoc.y) <= 1 ) {
-								adjacentAllies++;
-							}
-							
-						}
-						
-						//suicide algorithm
-						int shouldIKillMyself = adjacentAllies - adjacentEnemies;
-						if (shouldIKillMyself < 0) {
-							double health = rc.senseRobotInfo(rc.getRobot()).health;
-							if ((int) health / (shouldIKillMyself * -30) < 1) {
-								if (isMemberOfGroup)
-									leaveCurrentGroup(rc);
-								rc.selfDestruct();
-							}
-						} else {
-							if (targetLocation != null) {
-							if (rc.canAttackSquare(targetLocation))
-								rc.attackSquare(targetLocation);
-							}
-						
-						}
-			}
-					
-				
-			
-		} else {
+		//rc.setIndicatorString(0, "gotMap is " + gotMap + " and isMapReady is " + isMapReady());
+		//rc.setIndicatorString(1, "current Role is " + currentRole);
+
 			
 			
-			rc.setIndicatorString(0, "gotMap is " + gotMap + " and isMapReady is " + isMapReady());
+			
 			if(gotMap==false&&isMapReady()==true){
 				rc.setIndicatorString(0, "Now getting map...");
 				//readTerrain(rc.getMapWidth(),rc.getMapHeight());
@@ -1016,120 +980,189 @@ public class SoldierRobot extends BaseRobot{
 					determineSoldierMode();
 				} else { 
 					
-
 					theBeatOfMyHeart(Clock.getRoundNum());
+					boolean willMove = true;
 					
-					//You have a map and a role, now move
-					//if you have a role, beat your heart
-			
-					if(rc.isActive()){
+					if (nearbyEnemies.length > 0) {
 						
-
-					
-							
-							
-							if (path1 != null) {
-							//debugging purposes:
-								StringBuilder stringb = new StringBuilder();
-								for (int n = 1; n < path1.getLength(); n++ ) {
-									stringb.append(" (" + path1.getStep(n).getX() + "," + path1.getStep(n).getY() + ") "  );
-								}
-								rc.setIndicatorString(1, "i is " + i + " and path is " + stringb.toString());
-							}
-							
-							//Loop for memebers of a Group
-							if (isMemberOfGroup) {
-								
-								//rc.setIndicatorString(2, "Is member " + orderInGroup + " of group " + group.groupChannel + " with the role " + currentRole);
-								
-								if (rc.isActive()) {
+						if (rc.isActive()) {
 									
-								//update Group Data is sufficient time has passed since last check
-								if ((currentTurn - lastGroupParameterCheck) > groupParameterTurnCheck) {
-									lastGroupParameterCheck = currentTurn;
+									MapLocation currentLoc = rc.getLocation();
+									double lowestHealth = 1000;
+									MapLocation targetLocation = null; //I'm pretty sure that the below loop guarantees this will never be null
+									int adjacentEnemies = 0;
+									int adjacentAllies = 0;
 									
-									int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);
-									updateGroupInformation(group, messages);
-								}
-								
-								/*Check if robot has destination. moveToNextSpot() sets destination to null
-								 * when there are no more locations to travel
-								 *
-								 * */
-								if (destination != null) {
 									
+									//search for enemy with lowest health, and determine how many enemies are next to you
+									for (int n = 0; n < nearbyEnemies.length; n++) {
 										
-										if (currentRole == SoldierMode.DEFENDER || currentRole == SoldierMode.DESTROYER) {
-													if(calculateDistance(rc.getLocation(),destination) > 4){
-														moveToNextSpot(true);
-													}
-													else {
-														roam(rc,6,destination);
-													}
-										} 
-								//If Destination is null, check group information to see if a new target has been
-								//assigned...
-								} else {
-									
-									int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);   
-									MapLocation groupTarget = GroupUnit.getCurrentTarget(messages);
-									
-									if (!groupTarget.equals(roamingSite)) {
-									 destination = groupTarget;
-										setPath(rc.getLocation(),destination);
+										RobotInfo info = rc.senseRobotInfo(nearbyEnemies[n]);
+										
+										if ( info.health < lowestHealth  ) {
+											lowestHealth = info.health;
+											targetLocation = info.location;
+										}
+										
+										if ( Math.abs(info.location.x - currentLoc.x) <= 1 && Math.abs(info.location.y - currentLoc.y) <= 1 ) {
+											adjacentEnemies++;
+										}
+										
 									}
-									 
-									 //if robot still has no destination, roam
-									 if (destination == null) {
-										 roam(rc, 6, roamingSite);
-									 } 
-								}
-								}
-								
-					//This is the loop for robots who are not part of a group	
-					} else {
-							if (rc.isActive()) {
-								
-								//rc.setIndicatorString(2, "Current role is " + currentRole);
-								
-								if (currentRole == SoldierMode.SOLO_SETTLER) {
 									
-										/*move a space. If function returns false, you are at the end of the path
-										But because of a current but, you may not be in the exact destination you
-										were looking for...*/
-										if (!moveToNextSpot(false)) {
-											//set in your pastr Channel that you're going to start 
-											//construction on a pastr
-											int channelInt = rc.readBroadcast(pastrChannel);
-											channelInt = PastrRobot.channelSetPastrStatus(PastrStatus.BUILDING, channelInt);
-											channelInt = PastrRobot.channelSetTurn(currentTurn, channelInt);
-											rc.broadcast(pastrChannel, channelInt);
-											rc.construct(RobotType.PASTR);
+									//determines how many allies are next to you
+									/*for (int n = 0; n < nearbyAllies.length; n++) {
+										
+										RobotInfo info = rc.senseRobotInfo(nearbyAllies[n]);
+										if ( Math.abs(info.location.x - currentLoc.x) <= 1 && Math.abs(info.location.y - currentLoc.y) <= 1 ) {
+											adjacentAllies++;
+										}
+										
+									}
+									
+									//suicide algorithm
+									int shouldIKillMyself = adjacentAllies - adjacentEnemies;
+									if (shouldIKillMyself < 0) {
+										double health = rc.senseRobotInfo(rc.getRobot()).health;
+										if ((int) health / (shouldIKillMyself * -30) < 1) {
+											if (isMemberOfGroup)
+												leaveCurrentGroup(rc);
+											rc.selfDestruct();
+										}
+									} else {*/
+										if (targetLocation != null) {
+										if (rc.canAttackSquare(targetLocation))
+											rc.attackSquare(targetLocation);
+										willMove = false;
 										}
 									
-
-								} else if (currentRole == SoldierMode.SOLO_NOISING) {
-									//move if a space, if you're there, build a noise tower...
-									if (!moveToNextSpot(false)) {
-										//don't even ask about this, it's not worth it...
-										int constructingNoiseTowerFlag = 65536;
-										int message = constructingNoiseTowerFlag + Clock.getRoundNum();
-										rc.broadcast(pastrChannel + 1, message);
-										rc.construct(RobotType.NOISETOWER);
-									}
-									
-
-									
-									
-								}
-								
-								
-								
-								}
+									//}
 						}
+								
 							
 						
 					}
+					
+					
+
+
+					
+					if (willMove) {
+			
+						if(rc.isActive()){
+							
+	
+						
+								
+								/*
+								if (path1 != null) {
+								//debugging purposes:
+									StringBuilder stringb = new StringBuilder();
+									for (int n = 1; n < path1.getLength(); n++ ) {
+										stringb.append(" (" + path1.getStep(n).getX() + "," + path1.getStep(n).getY() + ") "  );
+									}
+									rc.setIndicatorString(1, "i is " + i + " and path is " + stringb.toString());
+								}*/
+								
+								//Loop for memebers of a Group
+								if (isMemberOfGroup) {
+									
+									//rc.setIndicatorString(2, "Is member " + orderInGroup + " of group " + group.groupChannel + " with the role " + currentRole);
+									
+									if (rc.isActive()) {
+										
+									//update Group Data is sufficient time has passed since last check
+									if ((currentTurn - lastGroupParameterCheck) > groupParameterTurnCheck) {
+										lastGroupParameterCheck = currentTurn;
+										
+										int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);
+										updateGroupInformation(group, messages);
+									}
+									
+									/*Check if robot has destination. moveToNextSpot() sets destination to null
+									 * when there are no more locations to travel
+									 *
+									 * */
+									if (destination != null) {
+										
+											
+											if (currentRole == SoldierMode.DEFENDER || currentRole == SoldierMode.DESTROYER || currentRole == SoldierMode.GROUPING) {
+														if(calculateDistance(rc.getLocation(),destination) > 4){
+															moveToNextSpot(true);
+														}
+														else {
+															//this should cause you to roam in the next turn
+															announceArrivalAtGroupSite(rc);
+														}
+											} 
+									//If Destination is null, check group information to see if a new target has been
+									//assigned...
+									} else {
+										
+										int[] messages = GroupUnit.readGroupInformation(group.groupChannel, rc);   
+										MapLocation groupTarget = GroupUnit.getCurrentTarget(messages);
+										
+										if (!groupTarget.equals(roamingSite)) {
+											rc.setIndicatorString(2, "got new target: " + groupTarget + "now finding path...");
+										 destination = groupTarget;
+											setPath(rc.getLocation(),destination);
+											
+											rc.setIndicatorString(2, "found path.");
+										}
+										 
+										 //if robot still has no destination, roam
+										 if (destination == null) {
+											 roam(rc, 6, roamingSite);
+										 } 
+									}
+									}
+									
+						//This is the loop for robots who are not part of a group	
+						} else {
+								if (rc.isActive()) {
+									
+									//rc.setIndicatorString(2, "Current role is " + currentRole);
+									
+									if (currentRole == SoldierMode.SOLO_SETTLER) {
+										
+											/*move a space. If function returns false, you are at the end of the path
+											But because of a current but, you may not be in the exact destination you
+											were looking for...*/
+											if (!moveToNextSpot(false)) {
+												//set in your pastr Channel that you're going to start 
+												//construction on a pastr
+												int channelInt = rc.readBroadcast(pastrChannel);
+												channelInt = PastrRobot.channelSetPastrStatus(PastrStatus.BUILDING, channelInt);
+												channelInt = PastrRobot.channelSetTurn(currentTurn, channelInt);
+												rc.broadcast(pastrChannel, channelInt);
+												rc.construct(RobotType.PASTR);
+											}
+										
+	
+									} else if (currentRole == SoldierMode.SOLO_NOISING) {
+										//move if a space, if you're there, build a noise tower...
+										if (!moveToNextSpot(false)) {
+											//don't even ask about this, it's not worth it...
+											int constructingNoiseTowerFlag = 65536;
+											int message = constructingNoiseTowerFlag + Clock.getRoundNum();
+											rc.broadcast(pastrChannel + 1, message);
+											rc.construct(RobotType.NOISETOWER);
+										}
+										
+	
+										
+										
+									}
+									
+									
+									
+									}
+							}
+								
+							
+						}
+					
+				}
 			
 			
 			
@@ -1147,7 +1180,7 @@ public class SoldierRobot extends BaseRobot{
 			
 			
 			
-		}
+		
 		
 		
 		
